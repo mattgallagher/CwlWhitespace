@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C9140E991D1B7DA7001E4D8A /* CwlScalarScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917D191D155F9E003815C0 /* CwlScalarScanner.swift */; };
+		C9140E9A1D1B7DA7001E4D8A /* CwlWhitespaceTagging.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E561451D16B55A0019A935 /* CwlWhitespaceTagging.swift */; };
 		C9917CDA1D151A24003815C0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917CD91D151A24003815C0 /* AppDelegate.swift */; };
 		C9917CDC1D151A24003815C0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C9917CDB1D151A24003815C0 /* Assets.xcassets */; };
 		C9917CDF1D151A24003815C0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = C9917CDD1D151A24003815C0 /* MainMenu.xib */; };
@@ -15,9 +17,7 @@
 		C9917D091D151A3F003815C0 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C9917D081D151A3F003815C0 /* Cocoa.framework */; };
 		C9917D0E1D151A3F003815C0 /* SourceEditorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917D0D1D151A3F003815C0 /* SourceEditorExtension.swift */; };
 		C9917D101D151A3F003815C0 /* SourceEditorCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917D0F1D151A3F003815C0 /* SourceEditorCommand.swift */; };
-		C9917D141D151A3F003815C0 /* ViolationDetector.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C9917D061D151A3F003815C0 /* ViolationDetector.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		C9E561471D16B6860019A935 /* CwlScalarScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917D191D155F9E003815C0 /* CwlScalarScanner.swift */; };
-		C9E561481D16B6860019A935 /* CwlWhitespaceTagging.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E561451D16B55A0019A935 /* CwlWhitespaceTagging.swift */; };
+		C9917D141D151A3F003815C0 /* Whitespace Policing.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C9917D061D151A3F003815C0 /* Whitespace Policing.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C9E561491D16B7880019A935 /* CwlWhitespaceTagging.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E561451D16B55A0019A935 /* CwlWhitespaceTagging.swift */; };
 		C9E5614A1D16B7950019A935 /* CwlScalarScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917D191D155F9E003815C0 /* CwlScalarScanner.swift */; };
 /* End PBXBuildFile section */
@@ -53,7 +53,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				C9917D141D151A3F003815C0 /* ViolationDetector.appex in Embed App Extensions */,
+				C9917D141D151A3F003815C0 /* Whitespace Policing.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -61,7 +61,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		C9917CD61D151A24003815C0 /* CwlWhitespace.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CwlWhitespace.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9917CD61D151A24003815C0 /* Whitespace Policing for Xcode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Whitespace Policing for Xcode.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9917CD91D151A24003815C0 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		C9917CDB1D151A24003815C0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C9917CDE1D151A24003815C0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
@@ -72,7 +72,7 @@
 		C9917CF01D151A24003815C0 /* CwlWhitespaceUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CwlWhitespaceUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9917CF41D151A24003815C0 /* CwlWhitespaceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CwlWhitespaceUITests.swift; sourceTree = "<group>"; };
 		C9917CF61D151A24003815C0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		C9917D061D151A3F003815C0 /* ViolationDetector.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ViolationDetector.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9917D061D151A3F003815C0 /* Whitespace Policing.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Whitespace Policing.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9917D081D151A3F003815C0 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		C9917D0C1D151A3F003815C0 /* ViolationDetector.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = ViolationDetector.entitlements; sourceTree = "<group>"; };
 		C9917D0D1D151A3F003815C0 /* SourceEditorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceEditorExtension.swift; sourceTree = "<group>"; };
@@ -130,10 +130,10 @@
 		C9917CD71D151A24003815C0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				C9917CD61D151A24003815C0 /* CwlWhitespace.app */,
+				C9917CD61D151A24003815C0 /* Whitespace Policing for Xcode.app */,
 				C9917CE51D151A24003815C0 /* CwlWhitespaceTests.xctest */,
 				C9917CF01D151A24003815C0 /* CwlWhitespaceUITests.xctest */,
-				C9917D061D151A3F003815C0 /* ViolationDetector.appex */,
+				C9917D061D151A3F003815C0 /* Whitespace Policing.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -185,8 +185,7 @@
 				C9917D111D151A3F003815C0 /* Info.plist */,
 				C9917D0B1D151A3F003815C0 /* Supporting Files */,
 			);
-			name = CwlWhitespaceExtension;
-			path = ViolationDetector;
+			path = CwlWhitespaceExtension;
 			sourceTree = "<group>";
 		};
 		C9917D0B1D151A3F003815C0 /* Supporting Files */ = {
@@ -200,9 +199,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		C9917CD51D151A24003815C0 /* CwlWhitespace */ = {
+		C9917CD51D151A24003815C0 /* Whitespace Policing for Xcode */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C9917CF91D151A24003815C0 /* Build configuration list for PBXNativeTarget "CwlWhitespace" */;
+			buildConfigurationList = C9917CF91D151A24003815C0 /* Build configuration list for PBXNativeTarget "Whitespace Policing for Xcode" */;
 			buildPhases = (
 				C9917CD21D151A24003815C0 /* Sources */,
 				C9917CD31D151A24003815C0 /* Frameworks */,
@@ -214,9 +213,9 @@
 			dependencies = (
 				C9917D131D151A3F003815C0 /* PBXTargetDependency */,
 			);
-			name = CwlWhitespace;
+			name = "Whitespace Policing for Xcode";
 			productName = CwlWhitespace;
-			productReference = C9917CD61D151A24003815C0 /* CwlWhitespace.app */;
+			productReference = C9917CD61D151A24003815C0 /* Whitespace Policing for Xcode.app */;
 			productType = "com.apple.product-type.application";
 		};
 		C9917CE41D151A24003815C0 /* CwlWhitespaceTests */ = {
@@ -255,9 +254,9 @@
 			productReference = C9917CF01D151A24003815C0 /* CwlWhitespaceUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		C9917D051D151A3F003815C0 /* ViolationDetector */ = {
+		C9917D051D151A3F003815C0 /* Whitespace Policing */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C9917D151D151A3F003815C0 /* Build configuration list for PBXNativeTarget "ViolationDetector" */;
+			buildConfigurationList = C9917D151D151A3F003815C0 /* Build configuration list for PBXNativeTarget "Whitespace Policing" */;
 			buildPhases = (
 				C9917D021D151A3F003815C0 /* Sources */,
 				C9917D031D151A3F003815C0 /* Frameworks */,
@@ -267,9 +266,9 @@
 			);
 			dependencies = (
 			);
-			name = ViolationDetector;
+			name = "Whitespace Policing";
 			productName = ViolationDetector;
-			productReference = C9917D061D151A3F003815C0 /* ViolationDetector.appex */;
+			productReference = C9917D061D151A3F003815C0 /* Whitespace Policing.appex */;
 			productType = "com.apple.product-type.xcode-extension";
 		};
 /* End PBXNativeTarget section */
@@ -323,10 +322,10 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				C9917CD51D151A24003815C0 /* CwlWhitespace */,
+				C9917CD51D151A24003815C0 /* Whitespace Policing for Xcode */,
 				C9917CE41D151A24003815C0 /* CwlWhitespaceTests */,
 				C9917CEF1D151A24003815C0 /* CwlWhitespaceUITests */,
-				C9917D051D151A3F003815C0 /* ViolationDetector */,
+				C9917D051D151A3F003815C0 /* Whitespace Policing */,
 			);
 		};
 /* End PBXProject section */
@@ -377,9 +376,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C9E561481D16B6860019A935 /* CwlWhitespaceTagging.swift in Sources */,
+				C9140E9A1D1B7DA7001E4D8A /* CwlWhitespaceTagging.swift in Sources */,
 				C9917CEA1D151A24003815C0 /* CwlWhitespaceTests.swift in Sources */,
-				C9E561471D16B6860019A935 /* CwlScalarScanner.swift in Sources */,
+				C9140E991D1B7DA7001E4D8A /* CwlScalarScanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -407,17 +406,17 @@
 /* Begin PBXTargetDependency section */
 		C9917CE71D151A24003815C0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = C9917CD51D151A24003815C0 /* CwlWhitespace */;
+			target = C9917CD51D151A24003815C0 /* Whitespace Policing for Xcode */;
 			targetProxy = C9917CE61D151A24003815C0 /* PBXContainerItemProxy */;
 		};
 		C9917CF21D151A24003815C0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = C9917CD51D151A24003815C0 /* CwlWhitespace */;
+			target = C9917CD51D151A24003815C0 /* Whitespace Policing for Xcode */;
 			targetProxy = C9917CF11D151A24003815C0 /* PBXContainerItemProxy */;
 		};
 		C9917D131D151A3F003815C0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = C9917D051D151A3F003815C0 /* ViolationDetector */;
+			target = C9917D051D151A3F003815C0 /* Whitespace Policing */;
 			targetProxy = C9917D121D151A3F003815C0 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -529,7 +528,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = CwlWhitespace/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespace;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.whitespace;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 3.0;
 			};
@@ -544,7 +543,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = CwlWhitespace/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespace;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.whitespace;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 3.0;
 			};
@@ -560,7 +559,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespaceTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 3.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CwlWhitespace.app/Contents/MacOS/CwlWhitespace";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Whitespace Policing for Xcode.app/Contents/MacOS/Whitespace Policing for Xcode";
 			};
 			name = Debug;
 		};
@@ -574,7 +573,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespaceTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 3.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CwlWhitespace.app/Contents/MacOS/CwlWhitespace";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Whitespace Policing for Xcode.app/Contents/MacOS/Whitespace Policing for Xcode";
 			};
 			name = Release;
 		};
@@ -607,13 +606,13 @@
 		C9917D161D151A3F003815C0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ViolationDetector/ViolationDetector.entitlements;
+				CODE_SIGN_ENTITLEMENTS = CwlWhitespaceExtension/CwlWhitespaceExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = ViolationDetector/Info.plist;
+				INFOPLIST_FILE = CwlWhitespaceExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.11;
-				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespace.ViolationDetector;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.whitespace.policingextension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 3.0;
@@ -623,13 +622,13 @@
 		C9917D171D151A3F003815C0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = ViolationDetector/ViolationDetector.entitlements;
+				CODE_SIGN_ENTITLEMENTS = CwlWhitespaceExtension/CwlWhitespaceExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Mac Developer";
 				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = ViolationDetector/Info.plist;
+				INFOPLIST_FILE = CwlWhitespaceExtension/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.11;
-				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespace.ViolationDetector;
+				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.whitespace.policingextension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 3.0;
@@ -648,7 +647,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C9917CF91D151A24003815C0 /* Build configuration list for PBXNativeTarget "CwlWhitespace" */ = {
+		C9917CF91D151A24003815C0 /* Build configuration list for PBXNativeTarget "Whitespace Policing for Xcode" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C9917CFA1D151A24003815C0 /* Debug */,
@@ -675,7 +674,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C9917D151D151A3F003815C0 /* Build configuration list for PBXNativeTarget "ViolationDetector" */ = {
+		C9917D151D151A3F003815C0 /* Build configuration list for PBXNativeTarget "Whitespace Policing" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C9917D161D151A3F003815C0 /* Debug */,

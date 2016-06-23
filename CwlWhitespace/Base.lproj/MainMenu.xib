@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="11134" systemVersion="15F34" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
+<document type="com.apple.InterfaceBuilder3.Cocoa.XIB" version="3.0" toolsVersion="11129.15" systemVersion="15F34" targetRuntime="MacOSX.Cocoa" propertyAccessControl="none" useAutolayout="YES" customObjectInstantitationMethod="direct">
     <dependencies>
-        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="11134"/>
+        <deployment identifier="macosx"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.CocoaPlugin" version="11129.15"/>
     </dependencies>
     <objects>
         <customObject id="-2" userLabel="File's Owner" customClass="NSApplication">
@@ -11,7 +12,7 @@
         </customObject>
         <customObject id="-1" userLabel="First Responder" customClass="FirstResponder"/>
         <customObject id="-3" userLabel="Application" customClass="NSObject"/>
-        <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModuleProvider="target">
+        <customObject id="Voe-Tx-rLC" customClass="AppDelegate" customModule="Whitespace_Policing_for_Xcode" customModuleProvider="target">
             <connections>
                 <outlet property="window" destination="QvC-M9-y7g" id="gIp-Ho-8D9"/>
             </connections>
@@ -19,11 +20,11 @@
         <customObject id="YLy-65-1bz" customClass="NSFontManager"/>
         <menu title="Main Menu" systemMenu="main" id="AYu-sK-qS6">
             <items>
-                <menuItem title="CwlWhitespace" id="1Xt-HY-uBw">
+                <menuItem title="Whitespace Policing" id="1Xt-HY-uBw">
                     <modifierMask key="keyEquivalentModifierMask"/>
-                    <menu key="submenu" title="CwlWhitespace" systemMenu="apple" id="uQy-DD-JDr">
+                    <menu key="submenu" title="Whitespace Policing" systemMenu="apple" id="uQy-DD-JDr">
                         <items>
-                            <menuItem title="About CwlWhitespace" id="5kV-Vb-QxS">
+                            <menuItem title="About Whitespace Policing" id="5kV-Vb-QxS">
                                 <modifierMask key="keyEquivalentModifierMask"/>
                                 <connections>
                                     <action selector="orderFrontStandardAboutPanel:" target="-1" id="Exp-CZ-Vem"/>
@@ -37,7 +38,7 @@
                                 <menu key="submenu" title="Services" systemMenu="services" id="hz9-B4-Xy5"/>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="4je-JR-u6R"/>
-                            <menuItem title="Hide CwlWhitespace" keyEquivalent="h" id="Olw-nP-bQN">
+                            <menuItem title="Hide Whitespace Policing" keyEquivalent="h" id="Olw-nP-bQN">
                                 <connections>
                                     <action selector="hide:" target="-1" id="PnN-Uc-m68"/>
                                 </connections>
@@ -55,7 +56,7 @@
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="kCx-OE-vgT"/>
-                            <menuItem title="Quit CwlWhitespace" keyEquivalent="q" id="4sb-4s-VLi">
+                            <menuItem title="Quit Whitespace Policing" keyEquivalent="q" id="4sb-4s-VLi">
                                 <connections>
                                     <action selector="terminate:" target="-1" id="Te7-pn-YzF"/>
                                 </connections>
@@ -655,7 +656,7 @@
                     <modifierMask key="keyEquivalentModifierMask"/>
                     <menu key="submenu" title="Help" systemMenu="help" id="F2S-fz-NVQ">
                         <items>
-                            <menuItem title="CwlWhitespace Help" keyEquivalent="?" id="FKE-Sm-Kum">
+                            <menuItem title="Whitespace Policing Help" keyEquivalent="?" id="FKE-Sm-Kum">
                                 <connections>
                                     <action selector="showHelp:" target="-1" id="y7X-2Q-9no"/>
                                 </connections>
@@ -665,15 +666,73 @@
                 </menuItem>
             </items>
         </menu>
-        <window title="CwlWhitespace" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" animationBehavior="default" id="QvC-M9-y7g">
-            <windowStyleMask key="styleMask" titled="YES" closable="YES" miniaturizable="YES" resizable="YES"/>
-            <windowPositionMask key="initialPositionMask" leftStrut="YES" rightStrut="YES" topStrut="YES" bottomStrut="YES"/>
-            <rect key="contentRect" x="335" y="390" width="480" height="360"/>
-            <rect key="screenRect" x="0.0" y="0.0" width="1680" height="1027"/>
+        <window title="Cocoa with Love: Whitespace Policing for Xcode" allowsToolTipsWhenApplicationIsInactive="NO" autorecalculatesKeyViewLoop="NO" releasedWhenClosed="NO" animationBehavior="default" id="QvC-M9-y7g">
+            <windowStyleMask key="styleMask" titled="YES" closable="YES"/>
+            <windowPositionMask key="initialPositionMask" topStrut="YES"/>
+            <rect key="contentRect" x="706" y="671" width="546" height="210"/>
+            <rect key="screenRect" x="0.0" y="0.0" width="1920" height="1057"/>
+            <value key="minSize" type="size" width="546" height="149"/>
             <view key="contentView" wantsLayer="YES" id="EiT-Mj-1SZ">
-                <rect key="frame" x="0.0" y="0.0" width="480" height="360"/>
+                <rect key="frame" x="0.0" y="0.0" width="546" height="210"/>
                 <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="1Cx-pw-2f3">
+                        <rect key="frame" x="18" y="139" width="510" height="51"/>
+                        <constraints>
+                            <constraint firstAttribute="height" constant="51" id="wd0-Ai-LX4"/>
+                        </constraints>
+                        <textFieldCell key="cell" controlSize="mini" sendsActionOnEndEditing="YES" id="Gyq-mW-Mm6">
+                            <font key="font" metaFont="system"/>
+                            <string key="title">This application contains the Cocoa with Love "Whitespace Policing" extension for Apple's Xcode. Access the extension in Xcode 8 (or newer) from the bottom of the "Editor" menu when editing text files.</string>
+                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                            <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                        </textFieldCell>
+                    </textField>
+                    <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="W5x-el-nED">
+                        <rect key="frame" x="216" y="91" width="115" height="32"/>
+                        <buttonCell key="cell" type="push" title="Open Xcode" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="sJG-bV-Zrj">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="openXcodeWithSender:" target="Voe-Tx-rLC" id="jeB-Jt-SJR"/>
+                        </connections>
+                    </button>
+                    <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" translatesAutoresizingMaskIntoConstraints="NO" id="Cdg-ad-JLg">
+                        <rect key="frame" x="18" y="61" width="463" height="17"/>
+                        <textFieldCell key="cell" controlSize="mini" sendsActionOnEndEditing="YES" title="For full source code and other information, see Cocoa with Love." id="0RI-cE-B2n">
+                            <font key="font" metaFont="system"/>
+                            <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                            <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                        </textFieldCell>
+                    </textField>
+                    <button verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="lfG-1P-Jdf">
+                        <rect key="frame" x="177" y="13" width="193" height="32"/>
+                        <buttonCell key="cell" type="push" title="Open cocoawithlove.com" bezelStyle="rounded" alignment="center" borderStyle="border" imageScaling="proportionallyDown" inset="2" id="TIg-8G-mJO">
+                            <behavior key="behavior" pushIn="YES" lightByBackground="YES" lightByGray="YES"/>
+                            <font key="font" metaFont="system"/>
+                        </buttonCell>
+                        <connections>
+                            <action selector="openCocoaWithLoveWithSender:" target="Voe-Tx-rLC" id="OSW-Bo-xQH"/>
+                        </connections>
+                    </button>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="W5x-el-nED" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="A26-dv-6zh"/>
+                    <constraint firstAttribute="bottom" secondItem="lfG-1P-Jdf" secondAttribute="bottom" constant="20" id="BNI-UU-G40"/>
+                    <constraint firstItem="Cdg-ad-JLg" firstAttribute="top" secondItem="W5x-el-nED" secondAttribute="bottom" constant="20" id="Ff0-TC-fTU"/>
+                    <constraint firstAttribute="trailing" secondItem="1Cx-pw-2f3" secondAttribute="trailing" constant="20" id="GLL-NQ-00v"/>
+                    <constraint firstItem="W5x-el-nED" firstAttribute="top" secondItem="1Cx-pw-2f3" secondAttribute="bottom" constant="20" id="Hn4-zT-rFj"/>
+                    <constraint firstItem="Cdg-ad-JLg" firstAttribute="top" secondItem="W5x-el-nED" secondAttribute="bottom" constant="20" id="L2l-kt-snj"/>
+                    <constraint firstItem="lfG-1P-Jdf" firstAttribute="centerX" secondItem="EiT-Mj-1SZ" secondAttribute="centerX" id="MN2-wY-q2e"/>
+                    <constraint firstItem="Cdg-ad-JLg" firstAttribute="leading" secondItem="EiT-Mj-1SZ" secondAttribute="leading" constant="20" id="SlI-2p-O8l"/>
+                    <constraint firstAttribute="trailing" secondItem="Cdg-ad-JLg" secondAttribute="trailing" constant="67" id="WMw-Bq-BfR"/>
+                    <constraint firstItem="1Cx-pw-2f3" firstAttribute="top" secondItem="EiT-Mj-1SZ" secondAttribute="top" constant="20" id="WQG-H1-Sll"/>
+                    <constraint firstItem="1Cx-pw-2f3" firstAttribute="leading" secondItem="EiT-Mj-1SZ" secondAttribute="leading" constant="20" id="mpQ-id-XNb"/>
+                    <constraint firstItem="lfG-1P-Jdf" firstAttribute="top" secondItem="Cdg-ad-JLg" secondAttribute="bottom" constant="20" id="vuN-US-oO9"/>
+                </constraints>
             </view>
+            <point key="canvasLocation" x="166" y="-210"/>
         </window>
     </objects>
 </document>

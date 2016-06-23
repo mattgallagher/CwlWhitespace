@@ -1,6 +1,6 @@
 //
-//  CwlWhitespaceUITests.swift
-//  CwlWhitespaceUITests
+//  SourceEditorExtension.swift
+//  CwlWhitespace
 //
 //  Created by Matt Gallagher on 2016/06/18.
 //  Copyright © 2016 Matt Gallagher. All rights reserved.
@@ -18,11 +18,8 @@
 //  IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 //
 
-import XCTest
+import Foundation
+import XcodeKit
 
-class CwlWhitespaceUITests: XCTestCase {
-    func testExample() {
-        // Use recording to get started writing UI tests.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-    }
+class SourceEditorExtension: NSObject, XCSourceEditorExtension {
 }

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>ViolationDetector</string>
+	<string>WhitespacePolicing</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -34,9 +34,17 @@
 					<key>XCSourceEditorCommandClassName</key>
 					<string>$(PRODUCT_MODULE_NAME).SourceEditorCommand</string>
 					<key>XCSourceEditorCommandIdentifier</key>
-					<string>com.cocoawithlove.CwlWhitespace.ViolationDetector.SourceEditorCommand</string>
+					<string>com.cocoawithlove.whitespace.policingextension.detectProblems</string>
 					<key>XCSourceEditorCommandName</key>
-					<string>Detect whitespace violations</string>
+					<string>Detect problems</string>
+				</dict>
+				<dict>
+					<key>XCSourceEditorCommandClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SourceEditorCommand</string>
+					<key>XCSourceEditorCommandIdentifier</key>
+					<string>com.cocoawithlove.whitespace.policingextension.correctProblems</string>
+					<key>XCSourceEditorCommandName</key>
+					<string>Correct problems</string>
 				</dict>
 			</array>
 			<key>XCSourceEditorExtensionPrincipalClass</key>
