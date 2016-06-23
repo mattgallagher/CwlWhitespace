@@ -13,7 +13,6 @@
 		C9917CDC1D151A24003815C0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C9917CDB1D151A24003815C0 /* Assets.xcassets */; };
 		C9917CDF1D151A24003815C0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = C9917CDD1D151A24003815C0 /* MainMenu.xib */; };
 		C9917CEA1D151A24003815C0 /* CwlWhitespaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917CE91D151A24003815C0 /* CwlWhitespaceTests.swift */; };
-		C9917CF51D151A24003815C0 /* CwlWhitespaceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917CF41D151A24003815C0 /* CwlWhitespaceUITests.swift */; };
 		C9917D091D151A3F003815C0 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C9917D081D151A3F003815C0 /* Cocoa.framework */; };
 		C9917D0E1D151A3F003815C0 /* SourceEditorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917D0D1D151A3F003815C0 /* SourceEditorExtension.swift */; };
 		C9917D101D151A3F003815C0 /* SourceEditorCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9917D0F1D151A3F003815C0 /* SourceEditorCommand.swift */; };
@@ -24,13 +23,6 @@
 
 /* Begin PBXContainerItemProxy section */
 		C9917CE61D151A24003815C0 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = C9917CCE1D151A24003815C0 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = C9917CD51D151A24003815C0;
-			remoteInfo = CwlWhitespace;
-		};
-		C9917CF11D151A24003815C0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C9917CCE1D151A24003815C0 /* Project object */;
 			proxyType = 1;
@@ -69,9 +61,6 @@
 		C9917CE51D151A24003815C0 /* CwlWhitespaceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CwlWhitespaceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9917CE91D151A24003815C0 /* CwlWhitespaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CwlWhitespaceTests.swift; sourceTree = "<group>"; };
 		C9917CEB1D151A24003815C0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		C9917CF01D151A24003815C0 /* CwlWhitespaceUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CwlWhitespaceUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		C9917CF41D151A24003815C0 /* CwlWhitespaceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CwlWhitespaceUITests.swift; sourceTree = "<group>"; };
-		C9917CF61D151A24003815C0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C9917D061D151A3F003815C0 /* Whitespace Policing.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Whitespace Policing.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C9917D081D151A3F003815C0 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		C9917D0C1D151A3F003815C0 /* ViolationDetector.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = ViolationDetector.entitlements; sourceTree = "<group>"; };
@@ -97,13 +86,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C9917CED1D151A24003815C0 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		C9917D031D151A3F003815C0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -120,7 +102,6 @@
 			children = (
 				C9917CD81D151A24003815C0 /* CwlWhitespace */,
 				C9917CE81D151A24003815C0 /* CwlWhitespaceTests */,
-				C9917CF31D151A24003815C0 /* CwlWhitespaceUITests */,
 				C9917D0A1D151A3F003815C0 /* CwlWhitespaceExtension */,
 				C9917D071D151A3F003815C0 /* Frameworks */,
 				C9917CD71D151A24003815C0 /* Products */,
@@ -132,7 +113,6 @@
 			children = (
 				C9917CD61D151A24003815C0 /* Whitespace Policing for Xcode.app */,
 				C9917CE51D151A24003815C0 /* CwlWhitespaceTests.xctest */,
-				C9917CF01D151A24003815C0 /* CwlWhitespaceUITests.xctest */,
 				C9917D061D151A3F003815C0 /* Whitespace Policing.appex */,
 			);
 			name = Products;
@@ -156,15 +136,6 @@
 				C9917CEB1D151A24003815C0 /* Info.plist */,
 			);
 			path = CwlWhitespaceTests;
-			sourceTree = "<group>";
-		};
-		C9917CF31D151A24003815C0 /* CwlWhitespaceUITests */ = {
-			isa = PBXGroup;
-			children = (
-				C9917CF41D151A24003815C0 /* CwlWhitespaceUITests.swift */,
-				C9917CF61D151A24003815C0 /* Info.plist */,
-			);
-			path = CwlWhitespaceUITests;
 			sourceTree = "<group>";
 		};
 		C9917D071D151A3F003815C0 /* Frameworks */ = {
@@ -236,24 +207,6 @@
 			productReference = C9917CE51D151A24003815C0 /* CwlWhitespaceTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		C9917CEF1D151A24003815C0 /* CwlWhitespaceUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = C9917CFF1D151A24003815C0 /* Build configuration list for PBXNativeTarget "CwlWhitespaceUITests" */;
-			buildPhases = (
-				C9917CEC1D151A24003815C0 /* Sources */,
-				C9917CED1D151A24003815C0 /* Frameworks */,
-				C9917CEE1D151A24003815C0 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				C9917CF21D151A24003815C0 /* PBXTargetDependency */,
-			);
-			name = CwlWhitespaceUITests;
-			productName = CwlWhitespaceUITests;
-			productReference = C9917CF01D151A24003815C0 /* CwlWhitespaceUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 		C9917D051D151A3F003815C0 /* Whitespace Policing */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C9917D151D151A3F003815C0 /* Build configuration list for PBXNativeTarget "Whitespace Policing" */;
@@ -294,13 +247,6 @@
 						ProvisioningStyle = Automatic;
 						TestTargetID = C9917CD51D151A24003815C0;
 					};
-					C9917CEF1D151A24003815C0 = {
-						CreatedOnToolsVersion = 8.0;
-						DevelopmentTeam = S7YQ892G6G;
-						DevelopmentTeamName = "Matthew Gallagher";
-						ProvisioningStyle = Automatic;
-						TestTargetID = C9917CD51D151A24003815C0;
-					};
 					C9917D051D151A3F003815C0 = {
 						CreatedOnToolsVersion = 8.0;
 						DevelopmentTeam = S7YQ892G6G;
@@ -324,7 +270,6 @@
 			targets = (
 				C9917CD51D151A24003815C0 /* Whitespace Policing for Xcode */,
 				C9917CE41D151A24003815C0 /* CwlWhitespaceTests */,
-				C9917CEF1D151A24003815C0 /* CwlWhitespaceUITests */,
 				C9917D051D151A3F003815C0 /* Whitespace Policing */,
 			);
 		};
@@ -341,13 +286,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C9917CE31D151A24003815C0 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		C9917CEE1D151A24003815C0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -382,14 +320,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C9917CEC1D151A24003815C0 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				C9917CF51D151A24003815C0 /* CwlWhitespaceUITests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		C9917D021D151A3F003815C0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -408,11 +338,6 @@
 			isa = PBXTargetDependency;
 			target = C9917CD51D151A24003815C0 /* Whitespace Policing for Xcode */;
 			targetProxy = C9917CE61D151A24003815C0 /* PBXContainerItemProxy */;
-		};
-		C9917CF21D151A24003815C0 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = C9917CD51D151A24003815C0 /* Whitespace Policing for Xcode */;
-			targetProxy = C9917CF11D151A24003815C0 /* PBXContainerItemProxy */;
 		};
 		C9917D131D151A3F003815C0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -577,32 +502,6 @@
 			};
 			name = Release;
 		};
-		C9917D001D151A24003815C0 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = CwlWhitespaceUITests/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespaceUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 3.0;
-				TEST_TARGET_NAME = CwlWhitespace;
-			};
-			name = Debug;
-		};
-		C9917D011D151A24003815C0 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				COMBINE_HIDPI_IMAGES = YES;
-				INFOPLIST_FILE = CwlWhitespaceUITests/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.cocoawithlove.CwlWhitespaceUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 3.0;
-				TEST_TARGET_NAME = CwlWhitespace;
-			};
-			name = Release;
-		};
 		C9917D161D151A3F003815C0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -661,15 +560,6 @@
 			buildConfigurations = (
 				C9917CFD1D151A24003815C0 /* Debug */,
 				C9917CFE1D151A24003815C0 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		C9917CFF1D151A24003815C0 /* Build configuration list for PBXNativeTarget "CwlWhitespaceUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				C9917D001D151A24003815C0 /* Debug */,
-				C9917D011D151A24003815C0 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
