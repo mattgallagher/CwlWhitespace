@@ -1,6 +1,6 @@
 //
-//  CwlWhitespaceTests.swift
-//  CwlWhitespaceTests
+//  CwlWhitespaceTaggingTests.swift
+//  CwlWhitespaceTaggingTests
 //
 //  Created by Matt Gallagher on 2016/06/18.
 //  Copyright © 2016 Matt Gallagher. All rights reserved.
@@ -20,7 +20,7 @@
 
 import XCTest
 
-class CwlWhitespaceTests: XCTestCase {
+class CwlWhitespaceTaggingTests: XCTestCase {
 	func testParseEmpty() {
 		var tagger = WhitespaceTagger()
 		let regions = tagger.parse(line: "")
@@ -278,5 +278,12 @@ class CwlWhitespaceTests: XCTestCase {
 		let regions7 = tagger.parse(line: ") }")
 		XCTAssert(regions7.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
+	}
+	
+	func testBraces() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parse(line: "a.map{$0}")
+		XCTAssert(tagger.stack.isEmpty)
+		XCTAssert(regions1 == [TaggedRegion(start: 5, end: 5, tag: .missingSpace, expected: 1), TaggedRegion(start: 6, end: 6, tag: .missingSpace, expected: 1), TaggedRegion(start: 8, end: 8, tag: .missingSpace, expected: 1)])
 	}
 }

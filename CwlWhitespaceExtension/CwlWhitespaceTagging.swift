@@ -210,11 +210,11 @@ public struct WhitespaceTagger {
 				state = .literal
 			case (.body, .openBrace):
 				push(scope: .block)
-				if next != nil && next?.token != .space {
-					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
-				}
 				if previous != nil && previous?.token != .space && previous?.token != .openParen {
 					flag(regions: &regions, tag: .missingSpace, column: column, length: 0, expected: 1)
+				}
+				if next != nil && next?.token != .space {
+					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
 				}
 			case (.body, .closeBrace):
 				if !pop(scope: .block) {
@@ -446,7 +446,7 @@ public struct WhitespaceTagger {
 	mutating func readNext(scanner: inout ScalarScanner<String.UnicodeScalarView>) throws -> (token: Token, scalar: UnicodeScalar) {
 		let scalar = try scanner.readScalar()
 		switch scalar {
-		// Xcode ensures that newlines only appear at the end of line strings. Since we don't care if a line ends with a newline or the end of file we can simply drop all newlines.
+		// Xcode ensures that newlines only appear at the end of line strings. Since we don't care if a line ends with a newline or the end of file we can simply drop all newlines (by returning an "end of collection" error).
 		case "\n": fallthrough
 
 		// I'd love to reject Windows and classic Mac line endings entirely but it's not reasonable to reject the Xcode line endings setting. Just treat them like newlines.
@@ -469,6 +469,7 @@ public struct WhitespaceTagger {
 		// NOTE: I don't know if it's even possible for Xcode to pass a NUL through but it would mess with the keyword parsing so we can't have it classified as "other". Instead, classify it as unexpected whitespace and it will be flagged as invalid.
 		case "\0": fallthrough
 		
+		// Standard set of Unicode whitespace scalars
 		case "\u{000b}": fallthrough
 		case "\u{000c}": fallthrough
 		case "\u{0085}": fallthrough
