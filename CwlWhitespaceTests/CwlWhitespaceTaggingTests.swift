@@ -224,15 +224,15 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		XCTAssert(regions4.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block])
 		
-		let regions5 = tagger.parse(line: "\t#if someTest()\n")
+		let regions5 = tagger.parse(line: "\t\t#if someTest()\n")
 		XCTAssert(regions5.isEmpty)
-		XCTAssert(tagger.stack == [.block, .block])
+		XCTAssert(tagger.stack == [.block, .block, .hash])
 		
-		let regions6 = tagger.parse(line: "\t\tsomeValue.doSomethingElse()\n")
+		let regions6 = tagger.parse(line: "\t\t\tsomeValue.doSomethingElse()\n")
 		XCTAssert(regions6.isEmpty)
-		XCTAssert(tagger.stack == [.block, .block])
+		XCTAssert(tagger.stack == [.block, .block, .hash])
 		
-		let regions7 = tagger.parse(line: "\t#endif\n")
+		let regions7 = tagger.parse(line: "\t\t#endif\n")
 		XCTAssert(regions7.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block])
 		

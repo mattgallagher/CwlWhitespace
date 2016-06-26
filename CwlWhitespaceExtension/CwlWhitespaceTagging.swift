@@ -28,9 +28,12 @@ enum Scope {
 	case interpolation
 	case paren
 	case block
+	case bracket
+	case hash
 	case switchScope
 	case ternary
 	case shadowedParen
+	case shadowedBracket
 	case shadowedBlock
 }
 
@@ -43,6 +46,8 @@ enum Token {
 	case quote
 	case openBrace
 	case closeBrace
+	case openBracket
+	case closeBracket
 	case openParen
 	case closeParen
 	case slash
@@ -51,12 +56,14 @@ enum Token {
 	case colon
 	case comma
 	case questionMark
-
+	
 	// Keywords
 	case caseKeyword
 	case defaultKeyword
 	case switchKeyword
-	case hashKeyword
+	case hashIfKeyword
+	case hashElseifKeyword
+	case hashEndifKeyword
 	
 	// Anything else is simply marked "other"
 	case other
@@ -132,7 +139,7 @@ public struct WhitespaceTagger {
 	public mutating func parse(line: String) -> [TaggedRegion] {
 		var scanner = ScalarScanner<String.UnicodeScalarView>(scalars: line.unicodeScalars)
 		var regions = [TaggedRegion]()
-
+		
 		let tabs: Bool
 		if case .tabs = indentationStyle {
 			tabs = true
@@ -140,11 +147,12 @@ public struct WhitespaceTagger {
 			tabs = false
 		}
 		
+		var buffer: MatchBuffer = ("\0", "\0", "\0", "\0", "\0", "\0", "\0", "\0")
 		var state = stack.contains(.multilineComment) ? ParseState.multilineComment : ParseState.indent
 		var column = 0
 		var previous: (token: Token, length: Int)? = nil
-		var current = nextToken(scanner: &scanner)
-		var next = nextToken(scanner: &scanner)
+		var current = nextToken(scanner: &scanner, buffer: &buffer)
+		var next = nextToken(scanner: &scanner, buffer: &buffer)
 		var consumeCount = 1
 		
 		var startOfLine = stack.count
@@ -157,7 +165,7 @@ public struct WhitespaceTagger {
 				state = stack.contains(.multilineComment) ? .multilineComment : .body
 				consumeCount += 1
 			case (.multilineComment, _): break
-			
+				
 			// In a literal, parse end quotes and start interpolations
 			case (.literal, .quote):
 				_ = pop(scope: .literal)
@@ -169,10 +177,10 @@ public struct WhitespaceTagger {
 				state = .body
 				consumeCount += 1
 			case (.literal, _): break
-			
+				
 			// In a line comment, skip everything
 			case (.lineComment, _): break
-
+				
 			// In the indent, parse tabs or spaces, according to indent rules, and everything else transitions to body
 			case (.indent, .tab) where tabs == true: _ = validateIndent(regions: &regions, length: length, next: next)
 			case (.indent, .tab):
@@ -192,18 +200,18 @@ public struct WhitespaceTagger {
 				
 				// Use a "continue" to force a reparse of the current token with changed state
 				continue
-
+				
 			// In the body, spaces must be single, must not be preceeded by tab or other whitespace and must not preceed a colon.
 			case (.body, .space) where length > 1: flag(regions: &regions, tag: .multipleSpaces, column: column, length: length, expected: 1)
 			case (.body, .space) where previous?.token == .tab || previous?.token == .whitespace || next == nil: flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 0)
 			case (.body, .space): break
-
+				
 			// Tabs and other whitespace are not permitted at all but based on whether they are preceeded by a space, tab or other whitepace should be replaced by either 1 space or deleted without replacement
 			case (.body, .tab) where previous?.token == .space || previous?.token == .whitespace || next == nil: flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 0)
 			case (.body, .tab): flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 1)
 			case (.body, .whitespace) where previous?.token == .space || previous?.token == .tab || next == nil: flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 0)
 			case (.body, .whitespace): flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 1)
-			
+				
 			// Literal, brace and paren scopes
 			case (.body, .quote):
 				push(scope: .literal)
@@ -227,6 +235,11 @@ public struct WhitespaceTagger {
 				if next != nil && next?.token != .space && next?.token != .closeParen && next?.token != .openParen && next?.token != .comma {
 					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
 				}
+			case (.body, .openBracket): push(scope: .bracket)
+			case (.body, .closeBracket):
+				if !pop(scope: .bracket) {
+					_ = pop(scope: .shadowedBracket)
+				}
 			case (.body, .openParen): push(scope: .paren)
 			case (.body, .closeParen):
 				if pop(scope: .interpolation) {
@@ -236,7 +249,7 @@ public struct WhitespaceTagger {
 						_ = pop(scope: .shadowedParen)
 					}
 				}
-			
+				
 			// Comments
 			case (.body, .slash) where next?.token == .slash:
 				state = .lineComment
@@ -249,7 +262,7 @@ public struct WhitespaceTagger {
 				push(scope: .interpolation)
 				state = .body
 				consumeCount += 1
-
+				
 			// Push and pop ternary from the stack
 			case (.body, .questionMark) where previous?.token == .space && next?.token == .space: push(scope: .ternary)
 			case (.body, .colon) where stack.last == .ternary:
@@ -260,7 +273,7 @@ public struct WhitespaceTagger {
 					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
 				}
 				_ = pop(scope: .ternary)
-
+				
 			// Identical spacing rules for colons and commas
 			case (.body, .colon): fallthrough
 			case (.body, .comma):
@@ -270,9 +283,13 @@ public struct WhitespaceTagger {
 				if previous?.token == .space {
 					flag(regions: &regions, tag: .unexpectedWhitespace, column: column - 1, length: 1, expected: 0)
 				}
-
+				
 			// Push switch onto the stack (effectively a label for any proceeding block scope)
 			case (.body, .switchKeyword): push(scope: .switchScope)
+			
+			// Hash scopes
+			case (.body, .hashIfKeyword): push(scope: .hash)
+			case (.body, .hashEndifKeyword): _ = pop(scope: .hash)
 			
 			// Other tokens are simply passed through
 			case (.body, .slash): break
@@ -280,8 +297,8 @@ public struct WhitespaceTagger {
 			case (.body, .backslash): break
 			case (.body, .defaultKeyword): break
 			case (.body, .caseKeyword): break
-			case (.body, .hashKeyword): break
 			case (.body, .questionMark): break
+			case (.body, .hashElseifKeyword): break
 			case (.body, .other): break
 			}
 			
@@ -290,7 +307,7 @@ public struct WhitespaceTagger {
 				column += length
 				previous = current
 				current = next
-				next = nextToken(scanner: &scanner)
+				next = nextToken(scanner: &scanner, buffer: &buffer)
 			}
 			consumeCount = 1
 			
@@ -341,7 +358,7 @@ public struct WhitespaceTagger {
 		}
 		return false
 	}
-
+	
 	// Pop the specified scope only if it is the last item in the `stack` array.
 	mutating func pop(scope: Scope) -> Bool {
 		if stack.last == scope {
@@ -350,7 +367,7 @@ public struct WhitespaceTagger {
 		}
 		return false
 	}
-
+	
 	// Check the indent width, flagging if incorrect.
 	mutating func validateIndent(regions: inout [TaggedRegion], length: Int, next: (token: Token, length: Int)?) -> Bool {
 		var offset = 0
@@ -358,14 +375,14 @@ public struct WhitespaceTagger {
 			switch n.token {
 			case .caseKeyword where isMostRecentBlockPreceededBySwitch(): fallthrough
 			case .defaultKeyword where isMostRecentBlockPreceededBySwitch(): fallthrough
-			case .hashKeyword: fallthrough
+			case .hashEndifKeyword: fallthrough
 			case .closeBrace: fallthrough
 			case .closeParen: offset = 1
 			default: break
 			}
 		}
-	
-		var expectedIndentCount = count(scope: .paren) + count(scope: .block) - offset
+		
+		var expectedIndentCount = count(scope: .paren) + count(scope: .block) + count(scope: .hash) - offset
 		expectedIndentCount = expectedIndentCount < 0 ? 0 : expectedIndentCount
 		
 		switch indentationStyle {
@@ -377,14 +394,14 @@ public struct WhitespaceTagger {
 		
 		return false
 	}
-
+	
 	// Append a flagged region for emitting.
 	mutating func flag(regions: inout [TaggedRegion], tag: Tag, column: Int, length: Int, expected: Int) {
 		regions.append(TaggedRegion(start: column, end: column + length, tag: tag, expected: expected))
 	}
-
+	
 	// Generates tokens for the parser by aggregating or substituting tokens from `readNext`.
-	mutating func nextToken(scanner: inout ScalarScanner<String.UnicodeScalarView>) -> (token: Token, length: Int)? {
+	mutating func nextToken(scanner: inout ScalarScanner<String.UnicodeScalarView>, buffer: inout MatchBuffer) -> (token: Token, length: Int)? {
 		var (token, scalar): (token: Token, scalar: UnicodeScalar)
 		do {
 			(token, scalar) = try readNext(scanner: &scanner)
@@ -393,17 +410,19 @@ public struct WhitespaceTagger {
 		var count = 1
 		if token.aggregates {
 			// While aggregating "other" tokens, see if it matches one of the keywords we're interested in.
-			typealias MatchBuffer = (UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar)
-			var possibleKeyword: (Token, MatchBuffer)?
+			var possibleKeyword: Bool = false
 			if token == .other {
 				switch scalar {
-				case "c": possibleKeyword = (Token.caseKeyword, ("a","s","e","\0","\0","\0","\0"))
-				case "d": possibleKeyword = (Token.defaultKeyword, ("e","f","a","u","l","t","\0"))
-				case "s": possibleKeyword = (Token.switchKeyword, ("w","i","t","c","h","\0","\0"))
+				case "c": fallthrough
+				case "d": fallthrough
+				case "s": fallthrough
+				case "#":
+					possibleKeyword = true
+					buffer = (scalar, "\0", "\0", "\0", "\0", "\0", "\0", "\0")
 				default: break
 				}
 			}
-
+			
 			do { repeat {
 				let (nextToken, nextScalar) = try readNext(scanner: &scanner)
 				if nextToken != token {
@@ -412,51 +431,65 @@ public struct WhitespaceTagger {
 				}
 				
 				// If this is a possible keyword match, make sure the scalars still match the expected
-				if var (_, buffer) = possibleKeyword {
+				if possibleKeyword {
 					if count < (sizeof(MatchBuffer.self) / sizeof(UnicodeScalar.self)) {
 						withUnsafeMutablePointer(&buffer) {
-							if UnsafeMutablePointer<UnicodeScalar>($0)[count - 1] != nextScalar {
-								possibleKeyword = nil
-							}
+							UnsafeMutablePointer<UnicodeScalar>($0)[count] = nextScalar
 						}
 					} else {
-						possibleKeyword = nil
+						possibleKeyword = false
 					}
 				}
-
+				
 				count += 1
 			} while true } catch {}
 			
 			// If we matched a keyword, substitute the token
-			if let (tok, buffer) = possibleKeyword {
-				let max = sizeof(MatchBuffer.self) / sizeof(UnicodeScalar.self)
-				var b = buffer
-				if count <= max && withUnsafePointer(&b, { UnsafePointer<UnicodeScalar>($0)[count - 1] == "\0" }) {
-					token = tok
+			if possibleKeyword {
+				switch scalar {
+				case "c":
+					var suffix: MatchBuffer = ("c", "a", "s", "e", "\0", "\0", "\0", "\0")
+					if match(first: &buffer, second: &suffix) { token = .caseKeyword }
+				case "d":
+					var suffix: MatchBuffer = ("d", "e", "f", "a", "u", "l", "t", "\0")
+					if match(first: &buffer, second: &suffix) { token = .defaultKeyword }
+				case "s":
+					var suffix: MatchBuffer = ("s", "w", "i", "t", "c", "h", "\0", "\0")
+					if match(first: &buffer, second: &suffix) { token = .switchKeyword }
+				case "#":
+					var suffix1: MatchBuffer = ("#", "i", "f", "\0", "\0", "\0", "\0", "\0")
+					var suffix2: MatchBuffer = ("#", "e", "l", "s", "e", "i", "f", "\0")
+					var suffix3: MatchBuffer = ("#", "e", "l", "s", "e", "\0", "\0", "\0")
+					var suffix4: MatchBuffer = ("#", "e", "n", "d", "i", "f", "\0", "\0")
+					if match(first: &buffer, second: &suffix1) { token = .hashIfKeyword }
+					else if match(first: &buffer, second: &suffix2) { token = .hashElseifKeyword }
+					else if match(first: &buffer, second: &suffix3) { token = .hashElseifKeyword }
+					else if match(first: &buffer, second: &suffix4) { token = .hashEndifKeyword }
+				default: break
 				}
-			} else if scalar == "#" {
-				token = .hashKeyword
 			}
 		}
-
+		
 		return (token, length: count)
 	}
-
+	
 	// Peek at the next scalar and classify the token to which it would belong. NOTE: this is only intended for calling from `nextToken` which aggregates scalars and further matches keywords from "other" globs.
 	mutating func readNext(scanner: inout ScalarScanner<String.UnicodeScalarView>) throws -> (token: Token, scalar: UnicodeScalar) {
 		let scalar = try scanner.readScalar()
 		switch scalar {
 		// Xcode ensures that newlines only appear at the end of line strings. Since we don't care if a line ends with a newline or the end of file we can simply drop all newlines (by returning an "end of collection" error).
 		case "\n": fallthrough
-
+			
 		// I'd love to reject Windows and classic Mac line endings entirely but it's not reasonable to reject the Xcode line endings setting. Just treat them like newlines.
 		case "\r": throw ScalarScannerError.endedPrematurely(count: 1, at: scanner.consumed - 1)
-		
+			
 		case " ": return (.space, scalar)
 		case "\t": return (.tab, scalar)
 		case "\"": return (.quote, scalar)
 		case "{": return (.openBrace, scalar)
 		case "}": return (.closeBrace, scalar)
+		case "[": return (.openBracket, scalar)
+		case "]": return (.closeBracket, scalar)
 		case "(": return (.openParen, scalar)
 		case ")": return (.closeParen, scalar)
 		case "/": return (.slash, scalar)
@@ -465,10 +498,10 @@ public struct WhitespaceTagger {
 		case ":": return (.colon, scalar)
 		case ",": return (.comma, scalar)
 		case "?": return (.questionMark, scalar)
-
+			
 		// NOTE: I don't know if it's even possible for Xcode to pass a NUL through but it would mess with the keyword parsing so we can't have it classified as "other". Instead, classify it as unexpected whitespace and it will be flagged as invalid.
 		case "\0": fallthrough
-		
+			
 		// Standard set of Unicode whitespace scalars
 		case "\u{000b}": fallthrough
 		case "\u{000c}": fallthrough
@@ -481,8 +514,15 @@ public struct WhitespaceTagger {
 		case "\u{202f}": fallthrough
 		case "\u{205f}": fallthrough
 		case "\u{3000}": return (.whitespace, scalar)
-		
+			
 		default: return (.other, scalar)
 		}
+	}
+}
+
+typealias MatchBuffer = (UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar)
+func match(first: inout MatchBuffer, second: inout MatchBuffer) -> Bool {
+	return withUnsafePointers(&first, &second) { (firstPtr, secondPtr) -> Bool in
+		memcmp(UnsafePointer<Void>(firstPtr), UnsafePointer<Void>(secondPtr), sizeof(MatchBuffer.self)) == 0
 	}
 }
