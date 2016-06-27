@@ -22,15 +22,15 @@ import Foundation
 
 // These scopes are the stack elements of the pushdown automata
 enum Scope {
-	case lineComment
-	case multilineComment
-	case literal
+	case comment
+	case string
 	case interpolation
 	case paren
 	case block
 	case bracket
 	case hash
 	case switchScope
+	case pendingSwitch
 	case ternary
 	case shadowedParen
 	case shadowedBracket
@@ -40,8 +40,9 @@ enum Scope {
 // These tokens are the arrows between nodes of the pushdown automata
 enum Token {
 	// Single scalar tokens
-	case tab
 	case space
+	case multiSpace
+	case tab
 	case whitespace
 	case quote
 	case openBrace
@@ -56,6 +57,13 @@ enum Token {
 	case colon
 	case comma
 	case questionMark
+
+	// Two scalar tokens
+	case slashStar
+	case starSlash
+	case doubleSlash
+	case slashQuote
+	case slashOpenParen
 	
 	// Keywords
 	case caseKeyword
@@ -68,7 +76,7 @@ enum Token {
 	// Anything else is simply marked "other"
 	case other
 	
-	// The following tokens may be multiple scalars, others will be a single scalar (for the purposes of this property, all keywords are "other" tokens)
+	// Consecutive instances of the following tokens will be grouped into a single token
 	var aggregates: Bool {
 		switch self {
 		case .tab: fallthrough
@@ -78,15 +86,29 @@ enum Token {
 		default: return false
 		}
 	}
+
+	// The following tokens may combine with the subsequent token to form a different token
+	var possibleCompound: Bool {
+		switch self {
+		case .slash: fallthrough
+		case .asterisk: fallthrough
+		case .backslash: return true
+		default: return false
+		}
+	}
 }
 
 // These states are the nodes of the pushdown automata
 enum ParseState {
 	case indent
+	case indentEnded
 	case body
+	case spaceBody
+	case needspaceBody
+	case parenBody
 	case literal
 	case lineComment
-	case multilineComment
+	case multiComment
 }
 
 // An indent is required to be a "\t" scalar or a multiple of " " scalars, depending on this setting
@@ -124,6 +146,7 @@ public enum Tag {
 /// The purpose is to "tag" whitespace regions in the line that violate basic formatting rules.
 public struct WhitespaceTagger {
 	var stack: [Scope]
+	var state: ParseState
 	let indentationStyle: IndentationStyle
 	
 	/// The constructor starts with an empty stack
@@ -131,6 +154,7 @@ public struct WhitespaceTagger {
 	public init(indentationStyle: IndentationStyle = .tabs) {
 		self.stack = [Scope]()
 		self.indentationStyle = indentationStyle
+		self.state = .indent
 	}
 	
 	/// Runs the parser
@@ -140,180 +164,177 @@ public struct WhitespaceTagger {
 		var scanner = ScalarScanner<String.UnicodeScalarView>(scalars: line.unicodeScalars)
 		var regions = [TaggedRegion]()
 		
-		let tabs: Bool
-		if case .tabs = indentationStyle {
-			tabs = true
-		} else {
-			tabs = false
+		// If we're not starting inside a multiline comment, set state to "indent" at the start of a line
+		if !stack.contains(.comment) {
+			state = ParseState.indent
 		}
 		
 		var buffer: MatchBuffer = ("\0", "\0", "\0", "\0", "\0", "\0", "\0", "\0")
-		var state = stack.contains(.multilineComment) ? ParseState.multilineComment : ParseState.indent
 		var column = 0
-		var previous: (token: Token, length: Int)? = nil
-		var current = nextToken(scanner: &scanner, buffer: &buffer)
-		var next = nextToken(scanner: &scanner, buffer: &buffer)
-		var consumeCount = 1
-		
 		var startOfLine = stack.count
-		
+
+		var current = nextToken(scanner: &scanner, buffer: &buffer)
 		while let (token, length) = current {
-			switch (state, token) {
+			switch (state, token, stack) {
 			// In a multiline comment, only parse "*/" pairs, otherwise skip
-			case (.multilineComment, .asterisk) where next?.token == .slash:
-				_ = pop(scope: .multilineComment)
-				state = stack.contains(.multilineComment) ? .multilineComment : .body
-				consumeCount += 1
-			case (.multilineComment, _): break
+			case (.multiComment, .starSlash, UniqueScope(.comment)): arrow(to: .body, pop: .comment)
+			case (.multiComment, .starSlash, _): arrow(to: .multiComment, pop: .comment)
+			case (.multiComment, .slashStar, _): arrow(to: .multiComment, push: .comment)
+			case (.multiComment, _, _): break
 				
 			// In a literal, parse end quotes and start interpolations
-			case (.literal, .quote):
-				_ = pop(scope: .literal)
-				state = .body
-			case (.literal, .backslash) where next?.token == .quote:
-				consumeCount += 1
-			case (.literal, .backslash) where next?.token == .openParen:
-				push(scope: .interpolation)
-				state = .body
-				consumeCount += 1
-			case (.literal, _): break
+			case (.literal, .quote, _): arrow(to: .body, pop: .string)
+			case (.literal, .slashOpenParen, _): arrow(to: .body, push: .interpolation)
+			case (.literal, _, _): break
 				
 			// In a line comment, skip everything
-			case (.lineComment, _): break
+			case (.lineComment, _, _): break
 				
-			// In the indent, parse tabs or spaces, according to indent rules, and everything else transitions to body
-			case (.indent, .tab) where tabs == true: _ = validateIndent(regions: &regions, length: length, next: next)
-			case (.indent, .tab):
-				if validateIndent(regions: &regions, length: length, next: next) {
-					flag(regions: &regions, tag: .incorrectIndent, column: column, length: length, expected: length)
-				}
-			case (.indent, .space) where tabs == false: _ = validateIndent(regions: &regions, length: length, next: next)
-			case (.indent, .space):
-				if validateIndent(regions: &regions, length: length, next: next) {
-					flag(regions: &regions, tag: .incorrectIndent, column: column, length: length, expected: length)
-				}
-			case (.indent, _):
-				if column == 0 {
-					_ = validateIndent(regions: &regions, length: 0, next: current)
-				}
-				state = .body
-				
-				// Use a "continue" to force a reparse of the current token with changed state
+			// The indent must be a single tab or space token. Validation happens during indentEnded.
+			case (.indent, .tab, _): arrow(to: .indentEnded)
+			case (.indent, .space, _): arrow(to: .indentEnded)
+			case (.indent, .multiSpace, _): arrow(to: .indentEnded)
+			case (.indent, _, _):
+				// No indent present, change to .indentEnded and reprocess this token
+				arrow(to: .indentEnded)
 				continue
-				
+			
+			// The indent is validated after reading the *next* token since some tokens may use a reduced indent count.
+			case (.indentEnded, .caseKeyword, TopScope(.switchScope)): fallthrough
+			case (.indentEnded, .defaultKeyword, TopScope(.switchScope)): fallthrough
+			case (.indentEnded, .hashEndifKeyword, _): fallthrough
+			case (.indentEnded, .closeBrace, _): fallthrough
+			case (.indentEnded, .closeParen, _):
+				// Process the indent at a reduced level, change to .body and reprocess this token
+				validateIndent(regions: &regions, length: column, offset: 1)
+				arrow(to: .spaceBody)
+				continue
+			case (.indentEnded, _, _):
+				// Process the indent normally, change to .body and reprocess this token
+				validateIndent(regions: &regions, length: column, offset: 0)
+				arrow(to: .spaceBody)
+				continue
+
+			// Handle post-whitespace conditions
+			case (.spaceBody, .quote, _): arrow(to: .literal, push: .string)
+			case (.spaceBody, .space, _):
+				// This should be unreachable due to token aggregation. In any case, flag the problem and stay at .spaceBody
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 0)
+				break
+			case (.spaceBody, .openBrace, TopScope(.pendingSwitch)): arrow(to: .needspaceBody, pop: .pendingSwitch, push: .switchScope)
+			case (.spaceBody, .openBrace, _): arrow(to: .needspaceBody, push: .block)
+			case (.spaceBody, .colon, TopScope(.ternary)): arrow(to: .needspaceBody, pop: .ternary)
+			case (.spaceBody, .colon, _): fallthrough
+			case (.spaceBody, .comma, _):
+				// This shouldn't follow a space. Flag the problem, change to .body and reprocess this token
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 0)
+				arrow(to: .body)
+				continue
+			case (.spaceBody, .questionMark, _): arrow(to: .needspaceBody, push: .ternary)
+			case (.spaceBody, .closeBrace, TopScope(.switchScope)): arrow(to: .needspaceBody, pop: .switchScope)
+			case (.spaceBody, .closeBrace, TopScope(.block)): arrow(to: .needspaceBody, pop: .block)
+			case (.spaceBody, .closeBrace, TopScope(.shadowedBlock)): arrow(to: .needspaceBody, pop: .shadowedBlock)
+			case (.spaceBody, .closeBrace, _): break
+			case (.spaceBody, _, _):
+				// No special handling required, change to .body and reprocess normally
+				arrow(to: .body)
+				continue
+			
+			// The only purpose of .parenBody is to satisfy .openBrace which usually wants a preceeding space but is happy with a preceeding .openParen instead. In all other cases, it's just a .body.
+			case (.parenBody, .quote, _): arrow(to: .literal, push: .string)
+			case (.parenBody, .openBrace, _): arrow(to: .needspaceBody, push: .block)
+			case (.parenBody, _, _):
+				// No special handling required, change to .body and reprocess normally
+				arrow(to: .body)
+				continue
+
+			// Handle state where a space is required
+			case (.needspaceBody, .comma, _): break
+			case (.needspaceBody, .closeParen, _): fallthrough
+			case (.needspaceBody, .space, _):
+				// We got the required space, now change to .body and reprocess this token
+				arrow(to: .body)
+				continue
+			case (.needspaceBody, _, _):
+				// Failed to get required space, flag the problem and change to .body to reprocess the token normally
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
+
 			// In the body, spaces must be single, must not be preceeded by tab or other whitespace and must not preceed a colon.
-			case (.body, .space) where length > 1: flag(regions: &regions, tag: .multipleSpaces, column: column, length: length, expected: 1)
-			case (.body, .space) where previous?.token == .tab || previous?.token == .whitespace || next == nil: flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 0)
-			case (.body, .space): break
-				
-			// Tabs and other whitespace are not permitted at all but based on whether they are preceeded by a space, tab or other whitepace should be replaced by either 1 space or deleted without replacement
-			case (.body, .tab) where previous?.token == .space || previous?.token == .whitespace || next == nil: flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 0)
-			case (.body, .tab): flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 1)
-			case (.body, .whitespace) where previous?.token == .space || previous?.token == .tab || next == nil: flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 0)
-			case (.body, .whitespace): flag(regions: &regions, tag: .unexpectedWhitespace, column: column, length: length, expected: 1)
-				
-			// Literal, brace and paren scopes
-			case (.body, .quote):
-				push(scope: .literal)
-				state = .literal
-			case (.body, .openBrace):
-				push(scope: .block)
-				if previous != nil && previous?.token != .space && previous?.token != .openParen {
-					flag(regions: &regions, tag: .missingSpace, column: column, length: 0, expected: 1)
-				}
-				if next != nil && next?.token != .space {
-					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
-				}
-			case (.body, .closeBrace):
-				if !pop(scope: .block) {
-					_ = pop(scope: .shadowedBlock)
-				}
-				_ = pop(scope: .switchScope)
-				if previous != nil && previous?.token != .space && previous?.token != .tab {
-					flag(regions: &regions, tag: .missingSpace, column: column, length: 0, expected: 1)
-				}
-				if next != nil && next?.token != .space && next?.token != .closeParen && next?.token != .openParen && next?.token != .comma {
-					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
-				}
-			case (.body, .openBracket): push(scope: .bracket)
-			case (.body, .closeBracket):
-				if !pop(scope: .bracket) {
-					_ = pop(scope: .shadowedBracket)
-				}
-			case (.body, .openParen): push(scope: .paren)
-			case (.body, .closeParen):
-				if pop(scope: .interpolation) {
-					state = .literal
-				} else {
-					if !pop(scope: .paren) {
-						_ = pop(scope: .shadowedParen)
-					}
-				}
-				
-			// Comments
-			case (.body, .slash) where next?.token == .slash:
-				state = .lineComment
-				consumeCount += 1
-			case (.body, .slash) where next?.token == .asterisk:
-				push(scope: .multilineComment)
-				state = .multilineComment
-				consumeCount += 1
-			case (.body, .slash) where next?.token == .openParen:
-				push(scope: .interpolation)
-				state = .body
-				consumeCount += 1
-				
-			// Push and pop ternary from the stack
-			case (.body, .questionMark) where previous?.token == .space && next?.token == .space: push(scope: .ternary)
-			case (.body, .colon) where stack.last == .ternary:
-				if previous?.token != .space {
-					flag(regions: &regions, tag: .missingSpace, column: column, length: 0, expected: 1)
-				}
-				if next?.token != .space {
-					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
-				}
-				_ = pop(scope: .ternary)
-				
-			// Identical spacing rules for colons and commas
-			case (.body, .colon): fallthrough
-			case (.body, .comma):
-				if next != nil && next?.token != .space {
-					flag(regions: &regions, tag: .missingSpace, column: column + 1, length: 0, expected: 1)
-				}
-				if previous?.token == .space {
-					flag(regions: &regions, tag: .unexpectedWhitespace, column: column - 1, length: 1, expected: 0)
-				}
-				
-			// Push switch onto the stack (effectively a label for any proceeding block scope)
-			case (.body, .switchKeyword): push(scope: .switchScope)
+			case (.body, .space, _): arrow(to: .spaceBody)
+			case (.body, .tab, _):
+				// Tabs should not appear in the body
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 1)
+			case (.body, .multiSpace, _):
+				// Multispace should not appear in the body
+				flag(regions: &regions, tag: .multipleSpaces, start: column, length: length, expected: 1)
+			case (.body, .whitespace, _):
+				// Non-tab, non-space whitespace should not appear anywhere
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 1)
+			case (.body, .quote, _): fallthrough
+			case (.body, .openBrace, _): fallthrough
+			case (.body, .closeBrace, _):
+				// A close brace should follow a space. Flag the problem, change to .spaceBody and reprocess this token
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .spaceBody)
+				continue
+			case (.body, .openBracket, _): arrow(to: .body, push: .bracket)
+			case (.body, .closeBracket, TopScope(.bracket)): arrow(to: .body, pop: .bracket)
+			case (.body, .closeBracket, TopScope(.shadowedBracket)): arrow(to: .body, pop: .shadowedBracket)
+			case (.body, .closeBracket, _): break
+			case (.body, .openParen, _): arrow(to: .parenBody, push: .paren)
+			case (.body, .closeParen, TopScope(.interpolation)): arrow(to: .literal, pop: .interpolation)
+			case (.body, .closeParen, TopScope(.paren)): arrow(to: .body, pop: .paren)
+			case (.body, .closeParen, TopScope(.shadowedParen)): arrow(to: .body, pop: .shadowedParen)
+			case (.body, .closeParen, _): break
+			case (.body, .doubleSlash, _): arrow(to: .lineComment)
+			case (.body, .slashStar, _): arrow(to: .multiComment, push: .comment)
+			case (.body, .colon, TopScope(.ternary)):
+				// A ternary operator colon should follow a space. Flag the problem, change to .spaceBody and reprocess this token
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .spaceBody)
+				continue
+			case (.body, .colon, _): fallthrough
+			case (.body, .comma, _): arrow(to: .needspaceBody)
+			case (.body, .switchKeyword, _): arrow(to: .body, push: .pendingSwitch)
+			case (.body, .hashIfKeyword, _): arrow(to: .body, push: .hash)
+			case (.body, .hashEndifKeyword, TopScope(.hash)): arrow(to: .body, pop: .hash)
+			case (.body, .hashEndifKeyword, _): break
 			
-			// Hash scopes
-			case (.body, .hashIfKeyword): push(scope: .hash)
-			case (.body, .hashEndifKeyword): _ = pop(scope: .hash)
-			
-			// Other tokens are simply passed through
-			case (.body, .slash): break
-			case (.body, .asterisk): break
-			case (.body, .backslash): break
-			case (.body, .defaultKeyword): break
-			case (.body, .caseKeyword): break
-			case (.body, .questionMark): break
-			case (.body, .hashElseifKeyword): break
-			case (.body, .other): break
+			case (.body, .slash, _): break
+			case (.body, .asterisk, _): break
+			case (.body, .backslash, _): break
+			case (.body, .defaultKeyword, _): break
+			case (.body, .caseKeyword, _): break
+			case (.body, .questionMark, _): break
+			case (.body, .hashElseifKeyword, _): break
+			case (.body, .slashOpenParen, _): break
+			case (.body, .starSlash, _): break
+			case (.body, .slashQuote, _): break
+			case (.body, .other, _): break
 			}
-			
-			// Tokens are consumed either 1 or 2 at a time (two token clusters include "//", "/*", "*/" and "\(")
-			for _ in 0..<consumeCount {
-				column += length
-				previous = current
-				current = next
-				next = nextToken(scanner: &scanner, buffer: &buffer)
-			}
-			consumeCount = 1
 			
 			// Track the "low water mark" of the stack
 			if stack.count < startOfLine {
 				startOfLine = stack.count
+			}
+
+			// Get the next token
+			column += length
+			if let next = nextToken(scanner: &scanner, buffer: &buffer) {
+				current = next
+			} else {
+				break
+			}
+		}
+
+		// Handle pending actions at end
+		if let c = current {
+			if state == .indentEnded {
+				validateIndent(regions: &regions, length: column, offset: 0)
+			} else if c.token == .space && state != .multiComment && state != .lineComment {
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - c.length, length: 1, expected: 0)
 			}
 		}
 		
@@ -324,7 +345,7 @@ public struct WhitespaceTagger {
 		var found = false
 		for index in (startOfLine..<stack.endIndex).reversed() {
 			switch stack[index] {
-			case .literal: stack.removeSubrange(index..<stack.endIndex)
+			case .string: stack.removeSubrange(index..<stack.endIndex)
 			case .block where !found: fallthrough
 			case .paren where !found: found = true
 			case .block: stack[index] = .shadowedBlock
@@ -336,68 +357,60 @@ public struct WhitespaceTagger {
 		return regions
 	}
 	
-	// Counts the number of `scope` values in the `stack` array
-	func count(scope: Scope) -> Int {
-		return stack.reduce(0) { $0 + ($1 == scope ? 1 : 0) }
+	mutating func arrow(to newState: ParseState) {
+		state = newState
 	}
 	
-	// Appends `scope` to the `stack` array.
-	mutating func push(scope: Scope) {
+	mutating func arrow(to newState: ParseState, push scope: Scope) {
 		stack.append(scope)
+		state = newState
 	}
 	
-	// Identation within "switch" blocks follows a slightly different set of rules so we need to know if the immediately enclosing block is a switch block, which is determined by a `.switchScope` immediately preceeding the `.block`.
-	func isMostRecentBlockPreceededBySwitch() -> Bool {
-		var found = false
-		for scope in stack.reversed() {
-			if scope == .block {
-				found = true
-			} else if found {
-				return scope == .switchScope
-			}
-		}
-		return false
-	}
-	
-	// Pop the specified scope only if it is the last item in the `stack` array.
-	mutating func pop(scope: Scope) -> Bool {
+	mutating func arrow(to newState: ParseState, pop scope: Scope) {
 		if stack.last == scope {
 			stack.removeLast()
-			return true
 		}
-		return false
+		state = newState
+	}
+	
+	mutating func arrow(to newState: ParseState, pop scopeOld: Scope, push scopeNew: Scope) {
+		if stack.last == scopeOld {
+			stack.removeLast()
+		}
+		stack.append(scopeNew)
+		state = newState
 	}
 	
 	// Check the indent width, flagging if incorrect.
-	mutating func validateIndent(regions: inout [TaggedRegion], length: Int, next: (token: Token, length: Int)?) -> Bool {
-		var offset = 0
-		if let n = next {
-			switch n.token {
-			case .caseKeyword where isMostRecentBlockPreceededBySwitch(): fallthrough
-			case .defaultKeyword where isMostRecentBlockPreceededBySwitch(): fallthrough
-			case .hashEndifKeyword: fallthrough
-			case .closeBrace: fallthrough
-			case .closeParen: offset = 1
-			default: break
+	@discardableResult
+	mutating func validateIndent(regions: inout [TaggedRegion], length: Int, offset: Int) {
+		var expectedIndentCount = stack.reduce(0) { count, scope -> Int in
+			switch scope {
+			case .paren: return count + 1
+			case .block: return count + 1
+			case .hash: return count + 1
+			case .switchScope: return count + 1
+			default: return count
 			}
 		}
-		
-		var expectedIndentCount = count(scope: .paren) + count(scope: .block) + count(scope: .hash) - offset
-		expectedIndentCount = expectedIndentCount < 0 ? 0 : expectedIndentCount
+		expectedIndentCount = expectedIndentCount < offset ? 0 : expectedIndentCount - offset
 		
 		switch indentationStyle {
-		case .tabs where length == expectedIndentCount: return true
-		case .tabs: flag(regions: &regions, tag: .incorrectIndent, column: 0, length: length, expected: expectedIndentCount)
-		case .spaces(let perIndent) where length % perIndent == 0 && length / perIndent == expectedIndentCount: return true
-		case .spaces(let perIndent): flag(regions: &regions, tag: .incorrectIndent, column: 0, length: length, expected: expectedIndentCount * perIndent)
+		case .tabs where length == expectedIndentCount: break
+		case .tabs: flag(regions: &regions, tag: .incorrectIndent, start: 0, length: length, expected: expectedIndentCount)
+		case .spaces(let perIndent) where length % perIndent == 0 && length / perIndent == expectedIndentCount: break
+		case .spaces(let perIndent): flag(regions: &regions, tag: .incorrectIndent, start: 0, length: length, expected: expectedIndentCount * perIndent)
 		}
-		
-		return false
 	}
 	
 	// Append a flagged region for emitting.
-	mutating func flag(regions: inout [TaggedRegion], tag: Tag, column: Int, length: Int, expected: Int) {
-		regions.append(TaggedRegion(start: column, end: column + length, tag: tag, expected: expected))
+	mutating func flag(regions: inout [TaggedRegion], tag: Tag, start: Int, length: Int, expected: Int) {
+		regions.append(TaggedRegion(start: start, end: start + length, tag: tag, expected: expected))
+	}
+
+	mutating func flag(regions: inout [TaggedRegion], tag: Tag, start: Int, length: Int, expected: Int, newState: ParseState) {
+		flag(regions: &regions, tag: tag, start: start, length: length, expected: expected)
+		state = newState
 	}
 	
 	// Generates tokens for the parser by aggregating or substituting tokens from `readNext`.
@@ -467,7 +480,25 @@ public struct WhitespaceTagger {
 					else if match(first: &buffer, second: &suffix4) { token = .hashEndifKeyword }
 				default: break
 				}
+			} else if token == .space && count > 1 {
+				token = .multiSpace
 			}
+		} else if token.possibleCompound {
+			do {
+				let (nextToken, _) = try readNext(scanner: &scanner)
+				count += 1
+				
+				switch (token, nextToken) {
+				case (.slash, .slash): token = .doubleSlash
+				case (.slash, .asterisk): token = .slashStar
+				case (.asterisk, .slash): token = .starSlash
+				case (.backslash, .openParen): token = .slashOpenParen
+				case (.backslash, .quote): token = .slashQuote
+				default:
+					try scanner.backtrack()
+					count -= 1
+				}
+			} catch {}
 		}
 		
 		return (token, length: count)
@@ -518,6 +549,28 @@ public struct WhitespaceTagger {
 		default: return (.other, scalar)
 		}
 	}
+}
+
+struct UniqueScope {
+	let scope: Scope
+	init(_ scope: Scope) {
+		self.scope = scope
+	}
+}
+
+func ~=(left: UniqueScope, right: Array<Scope>) -> Bool {
+	return right.reduce(0) { $0 + ($1 == left.scope ? 1 : 0) } == 1
+}
+
+struct TopScope {
+	let scope: Scope
+	init(_ scope: Scope) {
+		self.scope = scope
+	}
+}
+
+func ~=(left: TopScope, right: Array<Scope>) -> Bool {
+	return right.last == left.scope
 }
 
 typealias MatchBuffer = (UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar)

@@ -102,7 +102,7 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		var tagger = WhitespaceTagger()
 		let regions = tagger.parse(line: "Comment /* something ")
 		XCTAssert(regions.isEmpty)
-		XCTAssert(tagger.stack == [.multilineComment])
+		XCTAssert(tagger.stack == [.comment])
 
 		let regions2 = tagger.parse(line: "   */ end comment")
 		XCTAssert(regions2.isEmpty)
@@ -164,23 +164,23 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		var tagger = WhitespaceTagger()
 		let regions1 = tagger.parse(line: "switch a {")
 		XCTAssert(regions1.isEmpty)
-		XCTAssert(tagger.stack == [.switchScope, .block])
+		XCTAssert(tagger.stack == [.switchScope])
 		
 		let regions2 = tagger.parse(line: "case one:")
 		XCTAssert(regions2.isEmpty)
-		XCTAssert(tagger.stack == [.switchScope, .block])
+		XCTAssert(tagger.stack == [.switchScope])
 		
 		let regions3 = tagger.parse(line: "\tmultiline")
 		XCTAssert(regions3.isEmpty)
-		XCTAssert(tagger.stack == [.switchScope, .block])
+		XCTAssert(tagger.stack == [.switchScope])
 		
 		let regions4 = tagger.parse(line: "case two: single line")
 		XCTAssert(regions4.isEmpty)
-		XCTAssert(tagger.stack == [.switchScope, .block])
+		XCTAssert(tagger.stack == [.switchScope])
 		
 		let regions5 = tagger.parse(line: "default: break")
 		XCTAssert(regions5.isEmpty)
-		XCTAssert(tagger.stack == [.switchScope, .block])
+		XCTAssert(tagger.stack == [.switchScope])
 		
 		let regions6 = tagger.parse(line: "}")
 		XCTAssert(regions6.isEmpty)
