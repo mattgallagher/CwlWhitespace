@@ -45,7 +45,7 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 	
 	/// Current scanning index
 	public var index: C.Index
-
+	
 	/// Number of scalars consumed up to `index` (since String.UnicodeScalarView.Index is not a RandomAccessIndex, this makes determining the position *much* easier)
 	public var consumed: Int
 	
@@ -100,7 +100,7 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 		var i = index
 		let previousConsumed = consumed
 		try skipUntil(string: string)
-
+		
 		var result = ""
 		result.reserveCapacity(consumed - previousConsumed)
 		while i != index {
@@ -331,7 +331,7 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 		consumed += count
 		return result
 	}
-
+	
 	/// Returns a throwable error capturing the current scanner progress point.
 	public func unexpectedError() -> ScalarScannerError {
 		return ScalarScannerError.unexpected(at: consumed)
