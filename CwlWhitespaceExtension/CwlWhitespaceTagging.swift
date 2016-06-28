@@ -178,7 +178,7 @@ public struct WhitespaceTagger {
 		while let (token, length) = current {
 			#if DEBUG
 				// Handy debug statement:
-				print("Column: \(column), state: \(state), token: \(token), length: \(length), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count)")
+				// print("Column: \(column), state: \(state), token: \(token), length: \(length), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count)")
 			#endif
 			
 			switch (state, token, stack) {
