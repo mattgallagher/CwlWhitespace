@@ -64,4 +64,19 @@ class CwlWhitespaceCommandTests: XCTestCase {
 		XCTAssert(selections.count == 1)
 		XCTAssert(selections[0] == (line: 3, start: 7, end: 8))
 	}
+
+	func testCorrectOverlapping() {
+		var lines = [String]()
+		lines.append("let x = (0  ,0)")
+		let mutableLines = NSMutableArray(array: lines)
+		let selections = processLines(mutableLines, usesTabs: true, indentationWidth: 4, correctProblems: true, limitToLines: 0..<1)
+
+		var lines2 = [String]()
+		lines2.append("let x = (0, 0)")
+
+		XCTAssert(((mutableLines as [AnyObject]) as? [String])! == lines2)
+		XCTAssert(selections.count == 2)
+		XCTAssert(selections[0] == (line: 0, start: 10, end: 11))
+		XCTAssert(selections[1] == (line: 0, start: 11, end: 12))
+	}
 }

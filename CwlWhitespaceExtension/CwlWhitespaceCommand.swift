@@ -53,17 +53,25 @@ func processLines(_ mutableLines: NSMutableArray, usesTabs: Bool, indentationWid
 func apply(regions taggedRegions: [TaggedRegion], to line: String, index lineIndex: Int, useTabs: Bool) -> (String, [(line: Int, start: Int, end: Int)]) {
 	// Build a "corrected" version of the line with replacements according to the expectations on "tagged" regions
 	var corrected = ""
-	var sourceIterator = line.unicodeScalars.makeIterator()
-	var sourceIndex = 0
+	let source = line.unicodeScalars
+	var sourceIndex = source.startIndex
+	var sourceCount = 0
 	var offset = 0
 	var added = false
 	var flagged = [(line: Int, start: Int, end: Int)]()
 	
 	for region in taggedRegions {
 		// Copy all text up to the start of the next region without modification
-		while sourceIndex < region.start - offset, let s = sourceIterator.next() {
-			corrected.append(s)
-			sourceIndex += 1
+		while sourceCount > region.start {
+			corrected.remove(at: corrected.index(corrected.endIndex, offsetBy: -1))
+			sourceIndex = source.index(sourceIndex, offsetBy: -1)
+			sourceCount -= 1
+		}
+		
+		while sourceCount < region.start && sourceIndex != source.endIndex {
+			corrected.append(source[sourceIndex])
+			sourceIndex = source.index(after: sourceIndex)
+			sourceCount += 1
 		}
 		
 		// Generate a new region, replacing the tagged region
@@ -78,7 +86,6 @@ func apply(regions taggedRegions: [TaggedRegion], to line: String, index lineInd
 			// Write the corrected whitespace
 			for _ in 0..<(region.expected) {
 				corrected.append(correctionScalar)
-				sourceIndex += 1
 			}
 			
 			// Generate a selection
@@ -88,16 +95,18 @@ func apply(regions taggedRegions: [TaggedRegion], to line: String, index lineInd
 		
 		// Skip over the corresponding region
 		for _ in region.start..<region.end {
-			_ = sourceIterator.next()
+			sourceIndex = source.index(after: sourceIndex)
+			sourceCount += 1
 		}
 		
 		// Update the offset between the corrected and source text lines
-		offset = region.end - region.start - region.expected
+		offset += region.end - region.start - region.expected
 	}
 	
 	// Copy all text remaining up to the end of the line
-	while let s = sourceIterator.next() {
-		corrected.append(s)
+	while sourceIndex != source.endIndex {
+		corrected.append(source[sourceIndex])
+		sourceIndex = source.index(after: sourceIndex)
 	}
 	
 	// If we didn't generate any selections, select the whole line to indicate a change

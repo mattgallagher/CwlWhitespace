@@ -107,6 +107,7 @@ enum ParseState {
 	case parenBody
 	case literal
 	case escape
+	case possibleTernary
 	case lineComment
 	case multiComment
 }
@@ -177,7 +178,7 @@ public struct WhitespaceTagger {
 		while let (token, length) = current {
 			#if DEBUG
 				// Handy debug statement:
-				// print("Column: \(column), state: \(state), token: \(token), length: \(length), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count)")
+				print("Column: \(column), state: \(state), token: \(token), length: \(length), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count)")
 			#endif
 			
 			switch (state, token, stack) {
@@ -213,6 +214,12 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidthForIndent(endingWith: token))
 				arrow(to: .spaceBody)
 				continue
+			
+			// Distinguish colons in ternary operators by pushing .ternary onto the stack when a freestanding question mark is encountered.
+			case (.possibleTernary, .space, _): arrow(to: .spaceBody, push: .ternary)
+			case (.possibleTernary, _, _):
+				arrow(to: .body)
+				continue
 
 			// Handle post-whitespace conditions
 			case (.spaceBody, .space, _): fallthrough
@@ -227,10 +234,10 @@ public struct WhitespaceTagger {
 			case (.spaceBody, .colon, _): fallthrough
 			case (.spaceBody, .comma, _):
 				// This shouldn't follow a space. Flag the problem, change to .body and reprocess this token
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 0)
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - 1, length: length, expected: 0)
 				arrow(to: .body)
 				continue
-			case (.spaceBody, .questionMark, _): arrow(to: .needspaceBody, push: .ternary)
+			case (.spaceBody, .questionMark, _): arrow(to: .possibleTernary)
 			case (.spaceBody, .closeBrace, TopScope(.switchScope)): arrow(to: .needspaceBody, pop: .switchScope)
 			case (.spaceBody, .closeBrace, TopScope(.block)): arrow(to: .needspaceBody, pop: .block)
 			case (.spaceBody, .closeBrace, TopScope(.shadowedBlock)): arrow(to: .needspaceBody, pop: .shadowedBlock)
@@ -280,12 +287,15 @@ public struct WhitespaceTagger {
 			case (.body, .tab, _):
 				// Tabs should not appear in the body
 				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 1)
+				arrow(to: .spaceBody)
 			case (.body, .multiSpace, _):
 				// Multispace should not appear in the body
 				flag(regions: &regions, tag: .multipleSpaces, start: column, length: length, expected: 1)
+				arrow(to: .spaceBody)
 			case (.body, .whitespace, _):
 				// Non-tab, non-space whitespace should not appear anywhere
 				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 1)
+				arrow(to: .spaceBody)
 			case (.body, .quote, _): arrow(to: .literal, push: .string)
 			case (.body, .openBrace, _): fallthrough
 			case (.body, .closeBrace, _):
@@ -418,6 +428,7 @@ public struct WhitespaceTagger {
 	func expectedWidthForIndent(endingWith token: Token) -> Int {
 		switch (token, stack.last) {
 		case (.hashEndifKeyword, _): fallthrough
+		case (.hashElseifKeyword, _): fallthrough
 		case (.closeBrace, _): fallthrough
 		case (.closeBracket, _): fallthrough
 		case (.closeParen, _): fallthrough
@@ -600,7 +611,7 @@ struct UniqueScope {
 }
 
 func ~=(left: UniqueScope, right: Array<Scope>) -> Bool {
-	return right.reduce(0) { $0 + ($1 == left.scope ? 1 : 0) } == 1
+	return right.reduce(0) { $1 == left.scope ? $0 + 1 : $0 } == 1
 }
 
 struct IndentToken {

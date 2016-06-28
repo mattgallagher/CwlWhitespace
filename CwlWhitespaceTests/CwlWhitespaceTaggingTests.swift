@@ -262,6 +262,14 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		XCTAssert(regions6.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block, .hash])
 		
+		let regions12 = tagger.parseLine("\t\t#else\n")
+		XCTAssert(regions12.isEmpty)
+		XCTAssert(tagger.stack == [.block, .block, .hash])
+		
+		let regions11 = tagger.parseLine("\t\t\tsomeValue.doSomethingElse()\n")
+		XCTAssert(regions11.isEmpty)
+		XCTAssert(tagger.stack == [.block, .block, .hash])
+		
 		let regions7 = tagger.parseLine("\t\t#endif\n")
 		XCTAssert(regions7.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block])
@@ -278,6 +286,17 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		XCTAssert(regions10.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
+
+	func testNilCoalescing() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("if let dli_sname = info.dli_sname, _ = String(validatingUTF8: dli_sname) {")
+		let regions2 = tagger.parseLine("\treturn Int(address - (UInt(bitPattern: info.dli_saddr) ?? 0))")
+		let regions3 = tagger.parseLine("}")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(regions2.isEmpty)
+		XCTAssert(regions3.isEmpty)
+	}
+
 	
 	func testIndentNesting() {
 		var tagger = WhitespaceTagger()
@@ -315,5 +334,17 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		let regions1 = tagger.parseLine("a.map{$0}")
 		XCTAssert(tagger.stack.isEmpty)
 		XCTAssert(regions1 == [TaggedRegion(start: 5, end: 5, tag: .missingSpace, expected: 1), TaggedRegion(start: 6, end: 6, tag: .missingSpace, expected: 1), TaggedRegion(start: 8, end: 8, tag: .missingSpace, expected: 1)])
+	}
+	
+	func testMisplacedComma() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("let x = (0 ,0)")
+		XCTAssert(tagger.stack.isEmpty)
+		XCTAssert(regions1 == [TaggedRegion(start: 10, end: 11, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 12, end: 12, tag: .missingSpace, expected: 1)])
+
+		var tagger2 = WhitespaceTagger()
+		let regions2 = tagger2.parseLine("let x = (0  ,0)")
+		XCTAssert(tagger2.stack.isEmpty)
+		XCTAssert(regions2 == [TaggedRegion(start: 10, end: 12, tag: .multipleSpaces, expected: 1), TaggedRegion(start: 11, end: 12, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 13, end: 13, tag: .missingSpace, expected: 1)])
 	}
 }
