@@ -59,7 +59,7 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 	/// Throw if the scalars at the current `index` don't match the scalars in `value`. Advance the `index` to the end of the match.
 	/// WARNING: `string` is used purely for its `unicodeScalars` property and matching is purely based on direct scalar comparison (no decomposition or normalization is performed).
 	public mutating func match(string: String) throws {
-		let (newIndex, newConsumed) = try string.unicodeScalars.reduce((index: index, count: consumed)) { (tuple: (index: C.Index, count: Int), scalar: UnicodeScalar) in
+		let (newIndex, newConsumed) = try string.unicodeScalars.reduce((index: index, count: 0)) { (tuple: (index: C.Index, count: Int), scalar: UnicodeScalar) in
 			if tuple.index == self.scalars.endIndex || scalar != self.scalars[tuple.index] {
 				throw ScalarScannerError.matchFailed(wanted: string, at: consumed)
 			}
@@ -162,6 +162,7 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 		var i = index
 		var j = index
 		var c = 0
+		var d = 0
 		let remainder = match[match.index(after: match.startIndex)..<match.endIndex]
 		outerLoop: repeat {
 			while scalars[i] != first {
@@ -170,8 +171,11 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 				}
 				i = self.scalars.index(after: i)
 				c += 1
+				
+				// Track the last index and consume count before hitting the match
+				j = i
+				d = c
 			}
-			j = i
 			i = self.scalars.index(after: i)
 			c += 1
 			for s in remainder {
@@ -187,19 +191,20 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 			break
 		} while true
 		index = j
-		consumed += c
+		consumed += d
 	}
 	
 	/// Attempt to advance the `index` by count, returning `false` and `index` unchanged if `index` would advance past the end, otherwise returns `true` and `index` is advanced.
 	public mutating func skip(count: Int = 1) throws {
 		if count == 1 && index != scalars.endIndex {
 			index = scalars.index(after: index)
+			consumed += 1
 		} else {
 			var i = index
 			var c = count
 			while c > 0 {
 				if i == scalars.endIndex {
-					throw ScalarScannerError.endedPrematurely(count: count, at: count)
+					throw ScalarScannerError.endedPrematurely(count: count, at: consumed)
 				}
 				i = self.scalars.index(after: i)
 				c -= 1
@@ -214,15 +219,16 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 		if count <= consumed {
 			if count == 1 {
 				index = scalars.index(index, offsetBy: -1)
+				consumed -= 1
 			} else {
-				var c = count
-				while c > 0 {
+				let limit = consumed - count
+				while consumed != limit {
 					index = scalars.index(index, offsetBy: -1)
-					c -= 1
+					consumed -= 1
 				}
 			}
 		} else {
-			throw ScalarScannerError.endedPrematurely(count: -count, at: count)
+			throw ScalarScannerError.endedPrematurely(count: -count, at: consumed)
 		}
 	}
 	
@@ -322,7 +328,7 @@ public struct ScalarScanner<C: Collection where C.Iterator.Element == UnicodeSca
 		var i = index
 		for _ in 0..<count {
 			if i == scalars.endIndex {
-				throw ScalarScannerError.endedPrematurely(count: count, at: count)
+				throw ScalarScannerError.endedPrematurely(count: count, at: consumed)
 			}
 			result.append(scalars[i])
 			i = self.scalars.index(after: i)
