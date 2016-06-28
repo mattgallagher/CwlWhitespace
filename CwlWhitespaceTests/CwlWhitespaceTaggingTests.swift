@@ -21,268 +21,298 @@
 import XCTest
 
 class CwlWhitespaceTaggingTests: XCTestCase {
-	func testParseEmpty() {
+	func testEmpty() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "")
+		let regions = tagger.parseLine("")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseSingleSpace() {
+	func testSingleSpace() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: " ")
+		let regions = tagger.parseLine(" ")
 		XCTAssert(regions == [TaggedRegion(start: 0, end: 1, tag: .incorrectIndent, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseNewline() {
+	func testNewline() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "\n")
+		let regions = tagger.parseLine("\n")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseBlockCommentNoNewline() {
+	func testBlockCommentNoNewline() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "//  This is a comment")
+		let regions = tagger.parseLine("//  This is a comment")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseBlockCommentWithNewline() {
+	func testBlockCommentWithNewline() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "// This is a comment\n")
+		let regions = tagger.parseLine("// This is a comment\n")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseBlockCommentWithLeadingSpace() {
+	func testBlockCommentWithLeadingSpace() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "  // This is a comment\n")
+		let regions = tagger.parseLine("  // This is a comment\n")
 		XCTAssert(regions == [TaggedRegion(start: 0, end: 2, tag: .incorrectIndent, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseBodyText() {
+	func testBodyText() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "The quick brown fox.")
+		let regions = tagger.parseLine("The quick brown fox.")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseBodyTextWithLeadingTabAndNewline() {
+	func testBodyTextWithLeadingTabAndNewline() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "\tThe quick brown fox.\n")
+		let regions = tagger.parseLine("\tThe quick brown fox.\n")
 		XCTAssert(regions == [TaggedRegion(start: 0, end: 1, tag: .incorrectIndent, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
-	func testParseMultipleSpaces() {
+	func testMultipleSpaces() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "The quick  brown fox.")
+		let regions = tagger.parseLine("The quick  brown fox.")
 		XCTAssert(regions == [TaggedRegion(start: 9, end: 11, tag: .multipleSpaces, expected: 1)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testTrailingWhitespace() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "A \n")
+		let regions = tagger.parseLine("A \n")
 		XCTAssert(regions == [TaggedRegion(start: 1, end: 2, tag: .unexpectedWhitespace, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testMultilineCommentWithDoubleSpace() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "Comment /* something  **/")
+		let regions = tagger.parseLine("Comment /* something  **/")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testUnclosedMultilineComment() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "Comment /* something ")
+		let regions = tagger.parseLine("Comment /* something ")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack == [.comment])
 
-		let regions2 = tagger.parse(line: "   */ end comment")
+		let regions2 = tagger.parseLine("   */ end comment")
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testUnclosedParenthetical() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "(")
+		let regions = tagger.parseLine("(")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack == [.paren])
 
-		let regions2 = tagger.parse(line: ")")
+		let regions2 = tagger.parseLine(")")
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testUnclosedBrace() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "{")
+		let regions = tagger.parseLine("{")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack == [.block])
 
-		let regions2 = tagger.parse(line: "}")
+		let regions2 = tagger.parseLine("}")
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testLiteral() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "Some \"literal  with  double  spaces\"")
+		let regions = tagger.parseLine("Some \"literal  with  double  spaces\"")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testBraceSpace() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "let o = OnDelete {x = true}")
+		let regions = tagger.parseLine("let o = OnDelete {x = true}")
 		XCTAssert(regions == [TaggedRegion(start: 18, end: 18, tag: .missingSpace, expected: 1), TaggedRegion(start: 26, end: 26, tag: .missingSpace, expected: 1)])
+		XCTAssert(tagger.stack.isEmpty)
+	}
+	
+	func testShadowedAndEmptyBraces() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("do { repeat {")
+		XCTAssert(tagger.stack == [.shadowedBlock, .block])
+		XCTAssert(regions1.isEmpty)
+
+		let regions2 = tagger.parseLine("\ttry someFunction()")
+		XCTAssert(tagger.stack == [.shadowedBlock, .block])
+		XCTAssert(regions2.isEmpty)
+
+		let regions3 = tagger.parseLine("} while true } catch {}")
+		XCTAssert(regions3.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testTernary() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "let x = y > 0 ? y : 0")
+		let regions = tagger.parseLine("let x = y > 0 ? y : 0")
 		XCTAssert(regions.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testLiteralInterpolationNesting() {
 		var tagger = WhitespaceTagger()
-		let regions = tagger.parse(line: "body \"literal ignore dbl space  \\(interpolation nested paren(\"nestedLiteral ignore dbl space  dummy paren)\" back to interpolation  flag dbl space) outside paren) literal  ignore dbl space\" all scopes closed")
+		let regions = tagger.parseLine("body \"literal ignore dbl space  \\(interpolation nested paren(\"nestedLiteral ignore dbl space  dummy paren)\" back to interpolation  flag dbl space) outside paren) literal  ignore dbl space\" all scopes closed")
 		XCTAssert(regions.count == 1)
 		XCTAssert(regions == [TaggedRegion(start: 129, end: 131, tag: .multipleSpaces, expected: 1)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
+	func testDoubleBackslashEscaping() {
+		var tagger = WhitespaceTagger()
+		let regions = tagger.parseLine("let regions = tagger.parseLine(\"body \\\"literal ignore dbl space  \\\\(interpolation nested paren(\\\"nestedLiteral ignore dbl space  dummy paren)\\\" back to interpolation  flag dbl space) outside paren) literal  ignore dbl space\\\" all scopes closed\")")
+		XCTAssert(regions.isEmpty)
+		XCTAssert(tagger.stack.isEmpty)
+	}
+	
 	func testSwitch() {
 		var tagger = WhitespaceTagger()
-		let regions1 = tagger.parse(line: "switch a {")
+		let regions1 = tagger.parseLine("switch a {")
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger.stack == [.switchScope])
 		
-		let regions2 = tagger.parse(line: "case one:")
+		let regions2 = tagger.parseLine("// Non-indented comment")
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(tagger.stack == [.switchScope])
 		
-		let regions3 = tagger.parse(line: "\tmultiline")
+		let regions3 = tagger.parseLine("case one:")
 		XCTAssert(regions3.isEmpty)
 		XCTAssert(tagger.stack == [.switchScope])
 		
-		let regions4 = tagger.parse(line: "case two: single line")
+		let regions4 = tagger.parseLine("\t// Indented comment")
 		XCTAssert(regions4.isEmpty)
 		XCTAssert(tagger.stack == [.switchScope])
 		
-		let regions5 = tagger.parse(line: "default: break")
+		let regions5 = tagger.parseLine("\tmultiline")
 		XCTAssert(regions5.isEmpty)
 		XCTAssert(tagger.stack == [.switchScope])
 		
-		let regions6 = tagger.parse(line: "}")
+		let regions6 = tagger.parseLine("case two: single line")
 		XCTAssert(regions6.isEmpty)
+		XCTAssert(tagger.stack == [.switchScope])
+		
+		let regions7 = tagger.parseLine("default: break")
+		XCTAssert(regions7.isEmpty)
+		XCTAssert(tagger.stack == [.switchScope])
+		
+		let regions8 = tagger.parseLine("}")
+		XCTAssert(regions8.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testEnum() {
 		var tagger = WhitespaceTagger()
-		let regions1 = tagger.parse(line: "enum a {")
+		let regions1 = tagger.parseLine("enum a {")
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger.stack == [.block])
 		
-		let regions2 = tagger.parse(line: "\tcase one")
+		let regions2 = tagger.parseLine("\tcase one")
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(tagger.stack == [.block])
 		
-		let regions3 = tagger.parse(line: "\tcase two")
+		let regions3 = tagger.parseLine("\tcase two")
 		XCTAssert(regions3.isEmpty)
 		XCTAssert(tagger.stack == [.block])
 		
-		let regions4 = tagger.parse(line: "}")
+		let regions4 = tagger.parseLine("}")
 		XCTAssert(regions4.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testClass() {
 		var tagger = WhitespaceTagger()
-		let regions1 = tagger.parse(line: "class TestClass: TestSuperclass {\n")
+		let regions1 = tagger.parseLine("class TestClass: TestSuperclass {\n")
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger.stack == [.block])
 		
-		let regions2 = tagger.parse(line: "\tfunc testMethod() {\n")
+		let regions2 = tagger.parseLine("\tfunc testMethod() {\n")
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block])
 		
-		let regions3 = tagger.parse(line: "\t\tvar someVar = someValue\n")
+		let regions3 = tagger.parseLine("\t\tvar someVar = someValue\n")
 		XCTAssert(regions3.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block])
 		
-		let regions4 = tagger.parse(line: "\t\tsomeValue.doSomething()\n")
+		let regions4 = tagger.parseLine("\t\tsomeValue.doSomething()\n")
 		XCTAssert(regions4.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block])
 		
-		let regions5 = tagger.parse(line: "\t\t#if someTest()\n")
+		let regions5 = tagger.parseLine("\t\t#if someTest()\n")
 		XCTAssert(regions5.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block, .hash])
 		
-		let regions6 = tagger.parse(line: "\t\t\tsomeValue.doSomethingElse()\n")
+		let regions6 = tagger.parseLine("\t\t\tsomeValue.doSomethingElse()\n")
 		XCTAssert(regions6.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block, .hash])
 		
-		let regions7 = tagger.parse(line: "\t\t#endif\n")
+		let regions7 = tagger.parseLine("\t\t#endif\n")
 		XCTAssert(regions7.isEmpty)
 		XCTAssert(tagger.stack == [.block, .block])
 		
-		let regions8 = tagger.parse(line: "\t}\n")
+		let regions8 = tagger.parseLine("\t}\n")
 		XCTAssert(regions8.isEmpty)
 		XCTAssert(tagger.stack == [.block])
 		
-		let regions9 = tagger.parse(line: "\tvar t = s\n")
+		let regions9 = tagger.parseLine("\tvar t = s\n")
 		XCTAssert(regions9.isEmpty)
 		XCTAssert(tagger.stack == [.block])
 		
-		let regions10 = tagger.parse(line: "}")
+		let regions10 = tagger.parseLine("}")
 		XCTAssert(regions10.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testIndentNesting() {
 		var tagger = WhitespaceTagger()
-		let regions1 = tagger.parse(line: "a({")
+		let regions1 = tagger.parseLine("a({")
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger.stack == [.shadowedParen, .block])
 
-		let regions2 = tagger.parse(line: "\tb")
+		let regions2 = tagger.parseLine("\tb")
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(tagger.stack == [.shadowedParen, .block])
 
-		let regions3 = tagger.parse(line: "}, c, {")
+		let regions3 = tagger.parseLine("}, c, {")
 		XCTAssert(regions3.isEmpty)
 		XCTAssert(tagger.stack == [.shadowedParen, .block])
 
-		let regions4 = tagger.parse(line: "\td")
+		let regions4 = tagger.parseLine("\td")
 		XCTAssert(regions4.isEmpty)
 		XCTAssert(tagger.stack == [.shadowedParen, .block])
 
-		let regions5 = tagger.parse(line: "}) {(")
+		let regions5 = tagger.parseLine("}) {(")
 		XCTAssert(regions5 == [TaggedRegion(start: 4, end: 4, tag: .missingSpace, expected: 1)])
 		XCTAssert(tagger.stack == [.shadowedBlock, .paren])
 
-		let regions6 = tagger.parse(line: "\te")
+		let regions6 = tagger.parseLine("\te")
 		XCTAssert(regions6.isEmpty)
 		XCTAssert(tagger.stack == [.shadowedBlock, .paren])
 
-		let regions7 = tagger.parse(line: ") }")
+		let regions7 = tagger.parseLine(") }")
 		XCTAssert(regions7.isEmpty)
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
 	func testBraces() {
 		var tagger = WhitespaceTagger()
-		let regions1 = tagger.parse(line: "a.map{$0}")
+		let regions1 = tagger.parseLine("a.map{$0}")
 		XCTAssert(tagger.stack.isEmpty)
 		XCTAssert(regions1 == [TaggedRegion(start: 5, end: 5, tag: .missingSpace, expected: 1), TaggedRegion(start: 6, end: 6, tag: .missingSpace, expected: 1), TaggedRegion(start: 8, end: 8, tag: .missingSpace, expected: 1)])
 	}

@@ -62,8 +62,6 @@ enum Token {
 	case slashStar
 	case starSlash
 	case doubleSlash
-	case slashQuote
-	case slashOpenParen
 	
 	// Keywords
 	case caseKeyword
@@ -105,8 +103,10 @@ enum ParseState {
 	case body
 	case spaceBody
 	case needspaceBody
+	case braceBody
 	case parenBody
 	case literal
+	case escape
 	case lineComment
 	case multiComment
 }
@@ -160,7 +160,7 @@ public struct WhitespaceTagger {
 	/// Runs the parser
 	/// - parameter line: the text over which the parser will run
 	/// - returns: an array of regions in the text that violated the whitespace expectations
-	public mutating func parse(line: String) -> [TaggedRegion] {
+	public mutating func parseLine(_ line: String) -> [TaggedRegion] {
 		var scanner = ScalarScanner<String.UnicodeScalarView>(scalars: line.unicodeScalars)
 		var regions = [TaggedRegion]()
 		
@@ -175,6 +175,11 @@ public struct WhitespaceTagger {
 
 		var current = nextToken(scanner: &scanner, buffer: &buffer)
 		while let (token, length) = current {
+			#if DEBUG
+				// Handy debug statement:
+				// print("Column: \(column), state: \(state), token: \(token), length: \(length), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count)")
+			#endif
+			
 			switch (state, token, stack) {
 			// In a multiline comment, only parse "*/" pairs, otherwise skip
 			case (.multiComment, .starSlash, UniqueScope(.comment)): arrow(to: .body, pop: .comment)
@@ -182,47 +187,42 @@ public struct WhitespaceTagger {
 			case (.multiComment, .slashStar, _): arrow(to: .multiComment, push: .comment)
 			case (.multiComment, _, _): break
 				
-			// In a literal, parse end quotes and start interpolations
+			// In a literal, parse end quotes
+			case (.literal, .backslash, _): arrow(to: .escape)
 			case (.literal, .quote, _): arrow(to: .body, pop: .string)
-			case (.literal, .slashOpenParen, _): arrow(to: .body, push: .interpolation)
 			case (.literal, _, _): break
+				
+			case (.escape, .openParen, _): arrow(to: .parenBody, push: .interpolation)
+			case (.escape, _, _): arrow(to: .literal)
 				
 			// In a line comment, skip everything
 			case (.lineComment, _, _): break
 				
 			// The indent must be a single tab or space token. Validation happens during indentEnded.
-			case (.indent, .tab, _): arrow(to: .indentEnded)
-			case (.indent, .space, _): arrow(to: .indentEnded)
-			case (.indent, .multiSpace, _): arrow(to: .indentEnded)
+			case (.indent, IndentToken(indentationStyle), _): arrow(to: .indentEnded)
 			case (.indent, _, _):
 				// No indent present, change to .indentEnded and reprocess this token
 				arrow(to: .indentEnded)
 				continue
-			
+				
 			// The indent is validated after reading the *next* token since some tokens may use a reduced indent count.
-			case (.indentEnded, .caseKeyword, TopScope(.switchScope)): fallthrough
-			case (.indentEnded, .defaultKeyword, TopScope(.switchScope)): fallthrough
-			case (.indentEnded, .hashEndifKeyword, _): fallthrough
-			case (.indentEnded, .closeBrace, _): fallthrough
-			case (.indentEnded, .closeParen, _):
-				// Process the indent at a reduced level, change to .body and reprocess this token
-				validateIndent(regions: &regions, length: column, offset: 1)
+			case (.indentEnded, ValidIndent(self, column), _):
 				arrow(to: .spaceBody)
 				continue
 			case (.indentEnded, _, _):
-				// Process the indent normally, change to .body and reprocess this token
-				validateIndent(regions: &regions, length: column, offset: 0)
+				flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidthForIndent(endingWith: token))
 				arrow(to: .spaceBody)
 				continue
 
 			// Handle post-whitespace conditions
-			case (.spaceBody, .quote, _): arrow(to: .literal, push: .string)
-			case (.spaceBody, .space, _):
-				// This should be unreachable due to token aggregation. In any case, flag the problem and stay at .spaceBody
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 0)
-				break
-			case (.spaceBody, .openBrace, TopScope(.pendingSwitch)): arrow(to: .needspaceBody, pop: .pendingSwitch, push: .switchScope)
-			case (.spaceBody, .openBrace, _): arrow(to: .needspaceBody, push: .block)
+			case (.spaceBody, .space, _): fallthrough
+			case (.spaceBody, .multiSpace, _):
+				flag(regions: &regions, tag: .incorrectIndent, start: column, length: length, expected: 0)
+				
+				// Single spaces are checked at end-of-line but we've already flagged this so change "current" to avoid reflagging
+				current = (.other, 0)
+			case (.spaceBody, .openBrace, TopScope(.pendingSwitch)): arrow(to: .braceBody, pop: .pendingSwitch, push: .switchScope)
+			case (.spaceBody, .openBrace, _): arrow(to: .braceBody, push: .block)
 			case (.spaceBody, .colon, TopScope(.ternary)): arrow(to: .needspaceBody, pop: .ternary)
 			case (.spaceBody, .colon, _): fallthrough
 			case (.spaceBody, .comma, _):
@@ -239,18 +239,32 @@ public struct WhitespaceTagger {
 				// No special handling required, change to .body and reprocess normally
 				arrow(to: .body)
 				continue
-			
+				
 			// The only purpose of .parenBody is to satisfy .openBrace which usually wants a preceeding space but is happy with a preceeding .openParen instead. In all other cases, it's just a .body.
-			case (.parenBody, .quote, _): arrow(to: .literal, push: .string)
-			case (.parenBody, .openBrace, _): arrow(to: .needspaceBody, push: .block)
+			case (.parenBody, .quote, _): fallthrough
+			case (.parenBody, .openBrace, _):
+				// Space requirement satisfied without a space. Change to .spaceBody and reprocess normally.
+				arrow(to: .spaceBody)
+				continue
 			case (.parenBody, _, _):
 				// No special handling required, change to .body and reprocess normally
 				arrow(to: .body)
 				continue
 
+			// The only purpose of .braceBody is to satisfy .closeBrace which usually wants a preceeding space but is happy with a preceeding .openBrace instead. In all other cases, it's a .needspaceBody.
+			case (.braceBody, .closeBrace, _):
+				// Space requirement satisfied without a space. Change to .spaceBody and reprocess normally.
+				arrow(to: .spaceBody)
+				continue
+			case (.braceBody, _, _):
+				// No special handling required, change to .body and reprocess normally
+				arrow(to: .needspaceBody)
+				continue
+
 			// Handle state where a space is required
 			case (.needspaceBody, .comma, _): break
 			case (.needspaceBody, .closeParen, _): fallthrough
+			case (.needspaceBody, .closeBracket, _): fallthrough
 			case (.needspaceBody, .space, _):
 				// We got the required space, now change to .body and reprocess this token
 				arrow(to: .body)
@@ -272,7 +286,7 @@ public struct WhitespaceTagger {
 			case (.body, .whitespace, _):
 				// Non-tab, non-space whitespace should not appear anywhere
 				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 1)
-			case (.body, .quote, _): fallthrough
+			case (.body, .quote, _): arrow(to: .literal, push: .string)
 			case (.body, .openBrace, _): fallthrough
 			case (.body, .closeBrace, _):
 				// A close brace should follow a space. Flag the problem, change to .spaceBody and reprocess this token
@@ -301,7 +315,7 @@ public struct WhitespaceTagger {
 			case (.body, .hashIfKeyword, _): arrow(to: .body, push: .hash)
 			case (.body, .hashEndifKeyword, TopScope(.hash)): arrow(to: .body, pop: .hash)
 			case (.body, .hashEndifKeyword, _): break
-			
+				
 			case (.body, .slash, _): break
 			case (.body, .asterisk, _): break
 			case (.body, .backslash, _): break
@@ -309,9 +323,7 @@ public struct WhitespaceTagger {
 			case (.body, .caseKeyword, _): break
 			case (.body, .questionMark, _): break
 			case (.body, .hashElseifKeyword, _): break
-			case (.body, .slashOpenParen, _): break
 			case (.body, .starSlash, _): break
-			case (.body, .slashQuote, _): break
 			case (.body, .other, _): break
 			}
 			
@@ -332,7 +344,10 @@ public struct WhitespaceTagger {
 		// Handle pending actions at end
 		if let c = current {
 			if state == .indentEnded {
-				validateIndent(regions: &regions, length: column, offset: 0)
+				let expectedWidth = expectedIndentWidth()
+				if expectedWidth != column {
+					flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidth)
+				}
 			} else if c.token == .space && state != .multiComment && state != .lineComment {
 				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - c.length, length: 1, expected: 0)
 			}
@@ -381,10 +396,15 @@ public struct WhitespaceTagger {
 		state = newState
 	}
 	
-	// Check the indent width, flagging if incorrect.
-	@discardableResult
-	mutating func validateIndent(regions: inout [TaggedRegion], length: Int, offset: Int) {
-		var expectedIndentCount = stack.reduce(0) { count, scope -> Int in
+	func indentWidth() -> Int {
+		switch indentationStyle {
+		case .tabs: return 1
+		case .spaces(let perIndent): return perIndent
+		}
+	}
+	
+	func expectedIndentWidth() -> Int {
+		return stack.reduce(0) { count, scope -> Int in
 			switch scope {
 			case .paren: return count + 1
 			case .block: return count + 1
@@ -392,27 +412,29 @@ public struct WhitespaceTagger {
 			case .switchScope: return count + 1
 			default: return count
 			}
-		}
-		expectedIndentCount = expectedIndentCount < offset ? 0 : expectedIndentCount - offset
-		
-		switch indentationStyle {
-		case .tabs where length == expectedIndentCount: break
-		case .tabs: flag(regions: &regions, tag: .incorrectIndent, start: 0, length: length, expected: expectedIndentCount)
-		case .spaces(let perIndent) where length % perIndent == 0 && length / perIndent == expectedIndentCount: break
-		case .spaces(let perIndent): flag(regions: &regions, tag: .incorrectIndent, start: 0, length: length, expected: expectedIndentCount * perIndent)
+		} * indentWidth()
+	}
+
+	func expectedWidthForIndent(endingWith token: Token) -> Int {
+		switch (token, stack.last) {
+		case (.hashEndifKeyword, _): fallthrough
+		case (.closeBrace, _): fallthrough
+		case (.closeBracket, _): fallthrough
+		case (.closeParen, _): fallthrough
+		case (.defaultKeyword, .some(.switchScope)): fallthrough
+		case (.caseKeyword, .some(.switchScope)):
+			return expectedIndentWidth() - indentWidth()
+		case (.slashStar, .some(.switchScope)): fallthrough
+		case (.doubleSlash, .some(.switchScope)): fallthrough
+		default: return expectedIndentWidth()
 		}
 	}
-	
+
 	// Append a flagged region for emitting.
 	mutating func flag(regions: inout [TaggedRegion], tag: Tag, start: Int, length: Int, expected: Int) {
 		regions.append(TaggedRegion(start: start, end: start + length, tag: tag, expected: expected))
 	}
 
-	mutating func flag(regions: inout [TaggedRegion], tag: Tag, start: Int, length: Int, expected: Int, newState: ParseState) {
-		flag(regions: &regions, tag: tag, start: start, length: length, expected: expected)
-		state = newState
-	}
-	
 	// Generates tokens for the parser by aggregating or substituting tokens from `readNext`.
 	mutating func nextToken(scanner: inout ScalarScanner<String.UnicodeScalarView>, buffer: inout MatchBuffer) -> (token: Token, length: Int)? {
 		var (token, scalar): (token: Token, scalar: UnicodeScalar)
@@ -492,8 +514,6 @@ public struct WhitespaceTagger {
 				case (.slash, .slash): token = .doubleSlash
 				case (.slash, .asterisk): token = .slashStar
 				case (.asterisk, .slash): token = .starSlash
-				case (.backslash, .openParen): token = .slashOpenParen
-				case (.backslash, .quote): token = .slashQuote
 				default:
 					try scanner.backtrack()
 					count -= 1
@@ -508,10 +528,10 @@ public struct WhitespaceTagger {
 	mutating func readNext(scanner: inout ScalarScanner<String.UnicodeScalarView>) throws -> (token: Token, scalar: UnicodeScalar) {
 		let scalar = try scanner.readScalar()
 		switch scalar {
-		// Xcode ensures that newlines only appear at the end of line strings. Since we don't care if a line ends with a newline or the end of file we can simply drop all newlines (by returning an "end of collection" error).
+			// Xcode ensures that newlines only appear at the end of line strings. Since we don't care if a line ends with a newline or the end of file we can simply drop all newlines (by returning an "end of collection" error).
 		case "\n": fallthrough
 			
-		// I'd love to reject Windows and classic Mac line endings entirely but it's not reasonable to reject the Xcode line endings setting. Just treat them like newlines.
+			// I'd love to reject Windows and classic Mac line endings entirely but it's not reasonable to reject the Xcode line endings setting. Just treat them like newlines.
 		case "\r": throw ScalarScannerError.endedPrematurely(count: 1, at: scanner.consumed - 1)
 			
 		case " ": return (.space, scalar)
@@ -530,10 +550,10 @@ public struct WhitespaceTagger {
 		case ",": return (.comma, scalar)
 		case "?": return (.questionMark, scalar)
 			
-		// NOTE: I don't know if it's even possible for Xcode to pass a NUL through but it would mess with the keyword parsing so we can't have it classified as "other". Instead, classify it as unexpected whitespace and it will be flagged as invalid.
+			// NOTE: I don't know if it's even possible for Xcode to pass a NUL through but it would mess with the keyword parsing so we can't have it classified as "other". Instead, classify it as unexpected whitespace and it will be flagged as invalid.
 		case "\0": fallthrough
 			
-		// Standard set of Unicode whitespace scalars
+			// Standard set of Unicode whitespace scalars
 		case "\u{000b}": fallthrough
 		case "\u{000c}": fallthrough
 		case "\u{0085}": fallthrough
@@ -551,6 +571,27 @@ public struct WhitespaceTagger {
 	}
 }
 
+struct ValidIndent {
+	let tagger: WhitespaceTagger
+	let column: Int
+	init(_ tagger: WhitespaceTagger, _ column: Int) {
+		self.tagger = tagger
+		self.column = column
+	}
+}
+
+func ~=(left: ValidIndent, right: Token) -> Bool {
+	switch (right, left.tagger.stack.last) {
+	case (.slashStar, .some(.switchScope)): fallthrough
+	case (.doubleSlash, .some(.switchScope)):
+		if left.column == left.tagger.expectedWidthForIndent(endingWith: right) - left.tagger.indentWidth() {
+			return true
+		}
+		fallthrough
+	default: return left.column == left.tagger.expectedWidthForIndent(endingWith: right)
+	}
+}
+
 struct UniqueScope {
 	let scope: Scope
 	init(_ scope: Scope) {
@@ -560,6 +601,20 @@ struct UniqueScope {
 
 func ~=(left: UniqueScope, right: Array<Scope>) -> Bool {
 	return right.reduce(0) { $0 + ($1 == left.scope ? 1 : 0) } == 1
+}
+
+struct IndentToken {
+	let style: IndentationStyle
+	init(_ style: IndentationStyle) {
+		self.style = style
+	}
+}
+
+func ~=(left: IndentToken, right: Token) -> Bool {
+	switch left.style {
+	case .tabs: return right == .tab
+	case .spaces: return right == .space || right == .multiSpace
+	}
 }
 
 struct TopScope {

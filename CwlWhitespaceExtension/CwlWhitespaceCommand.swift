@@ -15,9 +15,8 @@ func processLines(_ mutableLines: NSMutableArray, usesTabs: Bool, indentationWid
 	// Read the whole file
 	for (lineIndex, lineContent) in mutableLines.enumerated() {
 		if let line = lineContent as? String {
-		
 			// Perform the parse
-			let taggedRegions = tagger.parse(line: line)
+			let taggedRegions = tagger.parseLine(line)
 			
 			// If the line has no issues, continue
 			if taggedRegions.isEmpty {
