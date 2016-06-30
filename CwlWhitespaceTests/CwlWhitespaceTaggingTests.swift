@@ -31,7 +31,7 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 	func testSingleSpace() {
 		var tagger = WhitespaceTagger()
 		let regions = tagger.parseLine(" ")
-		XCTAssert(regions == [TaggedRegion(start: 0, end: 1, tag: .incorrectIndent, expected: 0)])
+		XCTAssert(regions == [TaggedRegion(start: 0, end: 1, tag: .unexpectedWhitespace, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
@@ -59,7 +59,7 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 	func testBlockCommentWithLeadingSpace() {
 		var tagger = WhitespaceTagger()
 		let regions = tagger.parseLine("  // This is a comment\n")
-		XCTAssert(regions == [TaggedRegion(start: 0, end: 2, tag: .incorrectIndent, expected: 0)])
+		XCTAssert(regions == [TaggedRegion(start: 0, end: 2, tag: .unexpectedWhitespace, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
@@ -346,5 +346,45 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		let regions2 = tagger2.parseLine("let x = (0  ,0)")
 		XCTAssert(tagger2.stack.isEmpty)
 		XCTAssert(regions2 == [TaggedRegion(start: 10, end: 12, tag: .multipleSpaces, expected: 1), TaggedRegion(start: 11, end: 12, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 13, end: 13, tag: .missingSpace, expected: 1)])
+	}
+	
+	func testSpaceFollowingParen() {
+		var tagger = WhitespaceTagger()
+		let regions = tagger.parseLine("func someFunction( param: Type ){")
+		XCTAssert(tagger.stack == [.block])
+		XCTAssert(regions == [TaggedRegion(start: 18, end: 19, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 30, end: 31, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 32, end: 32, tag: .missingSpace, expected: 1)])
+	}
+
+	func testSpaceProblems() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("(param:Type)")
+		XCTAssert(regions1 == [TaggedRegion(start: 7, end: 7, tag: .missingSpace, expected: 1)])
+
+		let regions2 = tagger.parseLine("var (a,b) = ( c, d )")
+		XCTAssert(regions2 == [TaggedRegion(start: 7, end: 7, tag: .missingSpace, expected: 1), TaggedRegion(start: 13, end: 14, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 18, end: 19, tag: .unexpectedWhitespace, expected: 0)])
+
+		let regions3 = tagger.parseLine("(param : Type)")
+		XCTAssert(regions3 == [TaggedRegion(start: 6, end: 7, tag: .unexpectedWhitespace, expected: 0)])
+
+		let regions4 = tagger.parseLine("(param :Type)")
+		XCTAssert(regions4 == [TaggedRegion(start: 6, end: 7, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 8, end: 8, tag: .missingSpace, expected: 1)])
+	}
+
+	func testPrefixPostfixInfix() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("a+b! - -c??d")
+		XCTAssert(regions1 == [TaggedRegion(start: 1, end: 1, tag: .missingSpace, expected: 1), TaggedRegion(start: 2, end: 2, tag: .missingSpace, expected: 1), TaggedRegion(start: 9, end: 9, tag: .missingSpace, expected: 1), TaggedRegion(start: 11, end: 11, tag: .missingSpace, expected: 1)])
+	}
+
+	func testDotOperators() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("a.b...c.d..<e")
+		XCTAssert(regions1.isEmpty)
+
+		let regions2 = tagger.parseLine("a.b ... c.d ..< e")
+		XCTAssert(regions2 == [TaggedRegion(start: 3, end: 4, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 7, end: 8, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 11, end: 12, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 15, end: 16, tag: .unexpectedWhitespace, expected: 0)])
+
+		let regions3 = tagger.parseLine("(a.b)...(c.d) ... -e...(-f)")
+		XCTAssert(regions3 == [TaggedRegion(start: 13, end: 14, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 17, end: 18, tag: .unexpectedWhitespace, expected: 0)])
 	}
 }

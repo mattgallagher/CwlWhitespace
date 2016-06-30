@@ -20,6 +20,56 @@
 
 import Foundation
 
+// These tokens are the arrows between nodes of the pushdown automata
+enum Tok {
+	// Single scalar tokens
+	case space
+	case multiSpace
+	case tab
+	case whitespace
+	case quote
+	case openBrace
+	case closeBrace
+	case openBracket
+	case closeBracket
+	case openParen
+	case closeParen
+	case backslash
+	case colon
+	case comma
+	case op
+	case questionMark
+	case identifier
+	case hash
+	case digit
+	case dollar
+	case combining
+	case period
+	case semiColon
+	case at
+	case backtick
+
+	// Two scalar tokens
+	case slashStar
+	case starSlash
+	case doubleSlash
+	
+	// Keywords
+	case caseKeyword
+	case defaultKeyword
+	case switchKeyword
+	case hashIfKeyword
+	case hashElseKeyword
+	case hashElseifKeyword
+	case hashEndifKeyword
+
+	// Newlines and carriage returns
+	case endOfLine
+	
+	// Scalars that shouldn't be used at all – even in comments
+	case invalid
+}
+
 // These scopes are the stack elements of the pushdown automata
 enum Scope {
 	case comment
@@ -37,79 +87,49 @@ enum Scope {
 	case shadowedBlock
 }
 
-// These tokens are the arrows between nodes of the pushdown automata
-enum Token {
-	// Single scalar tokens
-	case space
-	case multiSpace
-	case tab
-	case whitespace
-	case quote
-	case openBrace
-	case closeBrace
-	case openBracket
-	case closeBracket
-	case openParen
-	case closeParen
-	case slash
-	case backslash
-	case asterisk
-	case colon
-	case comma
-	case questionMark
-
-	// Two scalar tokens
-	case slashStar
-	case starSlash
-	case doubleSlash
-	
-	// Keywords
-	case caseKeyword
-	case defaultKeyword
-	case switchKeyword
-	case hashIfKeyword
-	case hashElseifKeyword
-	case hashEndifKeyword
-	
-	// Anything else is simply marked "other"
-	case other
-	
-	// Consecutive instances of the following tokens will be grouped into a single token
-	var aggregates: Bool {
-		switch self {
-		case .tab: fallthrough
-		case .space: fallthrough
-		case .whitespace: fallthrough
-		case .other: return true
-		default: return false
-		}
-	}
-
-	// The following tokens may combine with the subsequent token to form a different token
-	var possibleCompound: Bool {
-		switch self {
-		case .slash: fallthrough
-		case .asterisk: fallthrough
-		case .backslash: return true
-		default: return false
-		}
-	}
-}
-
 // These states are the nodes of the pushdown automata
 enum ParseState {
-	case indent
-	case indentEnded
-	case body
-	case spaceBody
-	case needspaceBody
-	case braceBody
-	case parenBody
-	case literal
-	case escape
-	case possibleTernary
-	case lineComment
+	// Skipping (potentially nested) /* */ comments
 	case multiComment
+	
+	// Inside a string literal
+	case literal
+	
+	// Backslash inside a string literal just parsed
+	case escape
+	
+	// Skipping to end of line
+	case lineComment
+
+	// Start of the line
+	case indent
+	
+	// First non-indent token is parsed in this state so any effect on the indent can be considered
+	case indentEnded
+	
+	// Space after non-whitespace, non-operator.
+	case spaceBody
+	
+	// An identifier just parsed (or other token that may be followed by a postfix operator, dot operator or space but not another identifier or open scope)
+	case identifierBody
+	
+	// Left paren just parsed
+	case parenBody
+	
+	// Left brace just parsed
+	case braceBody
+	
+	// An operator parsed that should be followed a space or a dot operator (i.e. a left-hugging colon, postfix operator or comma)
+	case postfix
+	
+	// A space, then an operator just parsed (i.e. binary operator or prefix operator)
+	case prefix
+	
+	// A space, then an operator just parsed (i.e. binary operator or prefix operator)
+	case infix
+	
+	// Non-whitespace expected (no other states will be flagged except those that are invalid everywhere). Used as the starting state for a line and the fallback state for other scenarios.
+	case body
 }
 
 // An indent is required to be a "\t" scalar or a multiple of " " scalars, depending on this setting
@@ -158,11 +178,15 @@ public struct WhitespaceTagger {
 		self.state = .indent
 	}
 	
+	public mutating func parseLine(_ line: String) -> [TaggedRegion] {
+		return parseLine(line.unicodeScalars)
+	}
+	
 	/// Runs the parser
 	/// - parameter line: the text over which the parser will run
 	/// - returns: an array of regions in the text that violated the whitespace expectations
-	public mutating func parseLine(_ line: String) -> [TaggedRegion] {
-		var scanner = ScalarScanner<String.UnicodeScalarView>(scalars: line.unicodeScalars)
+	public mutating func parseLine<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.Iterator.Element == UnicodeScalar, C.SubSequence.IndexDistance == Int>(_ line: C) -> [TaggedRegion] {
+		var scanner = ScalarScanner<C>(scalars: line)
 		var regions = [TaggedRegion]()
 		
 		// If we're not starting inside a multiline comment, set state to "indent" at the start of a line
@@ -170,171 +194,228 @@ public struct WhitespaceTagger {
 			state = ParseState.indent
 		}
 		
-		var buffer: MatchBuffer = ("\0", "\0", "\0", "\0", "\0", "\0", "\0", "\0")
 		var column = 0
+		var previousLength = 0
 		var startOfLine = stack.count
+		var previousTok = Tok.invalid
+		var token = nextToken(scanner: &scanner)
 
-		var current = nextToken(scanner: &scanner, buffer: &buffer)
-		while let (token, length) = current {
+		repeat {
 			#if DEBUG
 				// Handy debug statement:
-				// print("Column: \(column), state: \(state), token: \(token), length: \(length), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count)")
+				print("Column: \(column), state: \(state), token: \(token.tok), length: \(token.slice.count), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count), text: \(token.slice)")
 			#endif
 			
-			switch (state, token, stack) {
-			// In a multiline comment, only parse "*/" pairs, otherwise skip
-			case (.multiComment, .starSlash, UniqueScope(.comment)): arrow(to: .body, pop: .comment)
+			switch (state, token.tok, stack) {
+			// Skipping (potentially nested) /* */ comments
+			case (.multiComment, .starSlash, UniqueScope(.comment)): arrow(to: .identifierBody, pop: .comment)
 			case (.multiComment, .starSlash, _): arrow(to: .multiComment, pop: .comment)
 			case (.multiComment, .slashStar, _): arrow(to: .multiComment, push: .comment)
 			case (.multiComment, _, _): break
 				
-			// In a literal, parse end quotes
+			// Inside a string literal
 			case (.literal, .backslash, _): arrow(to: .escape)
-			case (.literal, .quote, _): arrow(to: .body, pop: .string)
+			case (.literal, .quote, _): arrow(to: .identifierBody, pop: .string)
 			case (.literal, _, _): break
 				
+			// Backslash inside a string literal just parsed
 			case (.escape, .openParen, _): arrow(to: .parenBody, push: .interpolation)
 			case (.escape, _, _): arrow(to: .literal)
 				
-			// In a line comment, skip everything
+			// Skipping to end of line
 			case (.lineComment, _, _): break
 				
-			// The indent must be a single tab or space token. Validation happens during indentEnded.
+			// Start of the line
 			case (.indent, IndentToken(indentationStyle), _): arrow(to: .indentEnded)
 			case (.indent, _, _):
 				// No indent present, change to .indentEnded and reprocess this token
 				arrow(to: .indentEnded)
 				continue
 				
-			// The indent is validated after reading the *next* token since some tokens may use a reduced indent count.
+			// First non-indent token is parsed in this state so any effect on the indent can be considered
 			case (.indentEnded, ValidIndent(self, column), _):
-				arrow(to: .spaceBody)
+				arrow(to: .body)
 				continue
 			case (.indentEnded, _, _):
-				flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidthForIndent(endingWith: token))
-				arrow(to: .spaceBody)
+				flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidthForIndent(endingWith: token.tok))
+				arrow(to: .body)
 				continue
 			
-			// Distinguish colons in ternary operators by pushing .ternary onto the stack when a freestanding question mark is encountered.
-			case (.possibleTernary, .space, _): arrow(to: .spaceBody, push: .ternary)
-			case (.possibleTernary, _, _):
-				arrow(to: .body)
-				continue
-
-			// Handle post-whitespace conditions
-			case (.spaceBody, .space, _): fallthrough
-			case (.spaceBody, .multiSpace, _):
-				flag(regions: &regions, tag: .incorrectIndent, start: column, length: length, expected: 0)
-				
-				// Single spaces are checked at end-of-line but we've already flagged this so change "current" to avoid reflagging
-				current = (.other, 0)
-			case (.spaceBody, .openBrace, TopScope(.pendingSwitch)): arrow(to: .braceBody, pop: .pendingSwitch, push: .switchScope)
-			case (.spaceBody, .openBrace, _): arrow(to: .braceBody, push: .block)
-			case (.spaceBody, .colon, TopScope(.ternary)): arrow(to: .needspaceBody, pop: .ternary)
+			// Space after non-whitespace, non-operator.
+			case (.spaceBody, .colon, TopScope(.ternary)): arrow(to: .infix, pop: .ternary)
+			case (.spaceBody, .questionMark, _): arrow(to: .infix, push: .ternary)
+			case (.spaceBody, .op, _): arrow(to: .infix)
+			case (.spaceBody, .period, _): arrow(to: .infix)
 			case (.spaceBody, .colon, _): fallthrough
+			case (.spaceBody, .closeParen, _): fallthrough
+			case (.spaceBody, .endOfLine, _): fallthrough
 			case (.spaceBody, .comma, _):
-				// This shouldn't follow a space. Flag the problem, change to .body and reprocess this token
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - 1, length: length, expected: 0)
+				// This shouldn't follow a space. Flag the problem, change to .body and reprocess this token.
+				// WARNING: this flags the *previous* read scalar. There's a chance this scalar is already flagged, resulting in overlapping regions. This must be carefully handled.
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - 1, length: token.slice.count, expected: 0)
 				arrow(to: .body)
 				continue
-			case (.spaceBody, .questionMark, _): arrow(to: .possibleTernary)
-			case (.spaceBody, .closeBrace, TopScope(.switchScope)): arrow(to: .needspaceBody, pop: .switchScope)
-			case (.spaceBody, .closeBrace, TopScope(.block)): arrow(to: .needspaceBody, pop: .block)
-			case (.spaceBody, .closeBrace, TopScope(.shadowedBlock)): arrow(to: .needspaceBody, pop: .shadowedBlock)
-			case (.spaceBody, .closeBrace, _): break
 			case (.spaceBody, _, _):
-				// No special handling required, change to .body and reprocess normally
+				arrow(to: .body)
+				continue
+			
+			// An identifier just parsed (or other token that may be followed by a postfix operator, dot operator or space but not another identifier or open scope)
+			case (.identifierBody, .space, _): arrow(to: .spaceBody)
+			case (.identifierBody, .openBrace, _): fallthrough
+			case (.identifierBody, .closeBrace, _):
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
+			case (.identifierBody, .tab, _): fallthrough
+			case (.identifierBody, .whitespace, _):
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 1)
+				arrow(to: .spaceBody)
+			case (.identifierBody, .multiSpace, _):
+				flag(regions: &regions, tag: .multipleSpaces, start: column, length: token.slice.count, expected: 1)
+				arrow(to: .spaceBody)
+			case (.identifierBody, _, _):
 				arrow(to: .body)
 				continue
 				
-			// The only purpose of .parenBody is to satisfy .openBrace which usually wants a preceeding space but is happy with a preceeding .openParen instead. In all other cases, it's just a .body.
-			case (.parenBody, .quote, _): fallthrough
+			// Left paren just parsed
+			case (.parenBody, .closeBrace, _):
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
 			case (.parenBody, .openBrace, _):
 				// Space requirement satisfied without a space. Change to .spaceBody and reprocess normally.
-				arrow(to: .spaceBody)
+				arrow(to: .braceBody)
 				continue
+			case (.parenBody, .op, _): arrow(to: .infix)
+			case (.parenBody, .period, _): arrow(to: .infix)
+			case (.parenBody, .endOfLine, _): arrow(to: .body)
 			case (.parenBody, _, _):
-				// No special handling required, change to .body and reprocess normally
 				arrow(to: .body)
 				continue
 
-			// The only purpose of .braceBody is to satisfy .closeBrace which usually wants a preceeding space but is happy with a preceeding .openBrace instead. In all other cases, it's a .needspaceBody.
+			// Left brace just parsed
+			case (.braceBody, .openBrace, _): fallthrough
 			case (.braceBody, .closeBrace, _):
-				// Space requirement satisfied without a space. Change to .spaceBody and reprocess normally.
-				arrow(to: .spaceBody)
-				continue
-			case (.braceBody, _, _):
-				// No special handling required, change to .body and reprocess normally
-				arrow(to: .needspaceBody)
-				continue
-
-			// Handle state where a space is required
-			case (.needspaceBody, .comma, _): break
-			case (.needspaceBody, .closeParen, _): fallthrough
-			case (.needspaceBody, .closeBracket, _): fallthrough
-			case (.needspaceBody, .space, _):
-				// We got the required space, now change to .body and reprocess this token
 				arrow(to: .body)
 				continue
-			case (.needspaceBody, _, _):
+			case (.braceBody, .space, _): arrow(to: .spaceBody)
+			case (.braceBody, .endOfLine, _): arrow(to: .body)
+			case (.braceBody, _, _):
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
+
+			// An operator parsed that should be followed a space or a dot operator (i.e. a left-hugging colon, postfix operator or comma)
+			case (.postfix, .openParen, _) where previousTok == .period: fallthrough
+			case (.postfix, .identifier, _) where previousTok == .period:
+				arrow(to: .body)
+				continue
+			case (.postfix, .openParen, _): fallthrough
+			case (.postfix, .identifier, _) where previousTok == .op:
+				flag(regions: &regions, tag: .missingSpace, start: column - previousLength, length: 0, expected: 1)
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .infix)
+				continue
+			case (.postfix, .identifier, _):
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
+			case (.postfix, .space, _): arrow(to: .spaceBody)
+			case (.postfix, .endOfLine, _): arrow(to: .body)
+			case (.postfix, _, _):
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
+
+			// A space, then an operator just parsed (i.e. binary operator or prefix operator)
+			case (.prefix, .openBrace, _): fallthrough
+			case (.prefix, .closeBrace, _):
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
+			case (.prefix, _, _):
+				arrow(to: .body)
+				continue
+
+			// A space, then an operator just parsed (i.e. binary operator or prefix operator)
+			case (.infix, .identifier, _): fallthrough
+			case (.infix, .openParen, _): fallthrough
+			case (.infix, .openBracket, _):
+				arrow(to: .prefix)
+				continue
+			case (.infix, .openBrace, _): fallthrough
+			case (.infix, .closeBrace, _):
+				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
+				arrow(to: .body)
+				continue
+			case (.infix, .comma, _): break
+			case (.infix, .space, _) where previousTok == .period:
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - previousLength - 1, length: 1, expected: 0)
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 0)
+				arrow(to: .spaceBody)
+			case (.infix, .closeParen, _): fallthrough
+			case (.infix, .closeBracket, _): fallthrough
+			case (.infix, .endOfLine, _): fallthrough
+			case (.infix, .space, _):
+				// We got the required space
+				arrow(to: .spaceBody)
+			case (.infix, _, _):
 				// Failed to get required space, flag the problem and change to .body to reprocess the token normally
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
 				continue
 
-			// In the body, spaces must be single, must not be preceeded by tab or other whitespace and must not preceed a colon.
-			case (.body, .space, _): arrow(to: .spaceBody)
-			case (.body, .tab, _):
-				// Tabs should not appear in the body
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 1)
-				arrow(to: .spaceBody)
+			// Non-whitespace expected (no other states will be flagged except those that are invalid everywhere). Used as the starting state for a line and the fallback state for other scenarios.
+			case (.body, .space, _): fallthrough
+			case (.body, .tab, _): fallthrough
+			case (.body, .whitespace, _): fallthrough
 			case (.body, .multiSpace, _):
-				// Multispace should not appear in the body
-				flag(regions: &regions, tag: .multipleSpaces, start: column, length: length, expected: 1)
-				arrow(to: .spaceBody)
-			case (.body, .whitespace, _):
-				// Non-tab, non-space whitespace should not appear anywhere
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: length, expected: 1)
-				arrow(to: .spaceBody)
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 0)
 			case (.body, .quote, _): arrow(to: .literal, push: .string)
-			case (.body, .openBrace, _): fallthrough
-			case (.body, .closeBrace, _):
-				// A close brace should follow a space. Flag the problem, change to .spaceBody and reprocess this token
-				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
-				arrow(to: .spaceBody)
-				continue
+			case (.body, .openBrace, TopScope(.pendingSwitch)): arrow(to: .braceBody, pop: .pendingSwitch, push: .switchScope)
+			case (.body, .openBrace, _): arrow(to: .braceBody, push: .block)
+			case (.body, .closeBrace, TopScope(.switchScope)): arrow(to: .identifierBody, pop: .switchScope)
+			case (.body, .closeBrace, TopScope(.block)): arrow(to: .identifierBody, pop: .block)
+			case (.body, .closeBrace, TopScope(.shadowedBlock)): arrow(to: .identifierBody, pop: .shadowedBlock)
+			case (.body, .closeBrace, _): break
 			case (.body, .openBracket, _): arrow(to: .body, push: .bracket)
-			case (.body, .closeBracket, TopScope(.bracket)): arrow(to: .body, pop: .bracket)
-			case (.body, .closeBracket, TopScope(.shadowedBracket)): arrow(to: .body, pop: .shadowedBracket)
+			case (.body, .closeBracket, TopScope(.bracket)): arrow(to: .identifierBody, pop: .bracket)
+			case (.body, .closeBracket, TopScope(.shadowedBracket)): arrow(to: .identifierBody, pop: .shadowedBracket)
 			case (.body, .closeBracket, _): break
 			case (.body, .openParen, _): arrow(to: .parenBody, push: .paren)
 			case (.body, .closeParen, TopScope(.interpolation)): arrow(to: .literal, pop: .interpolation)
-			case (.body, .closeParen, TopScope(.paren)): arrow(to: .body, pop: .paren)
-			case (.body, .closeParen, TopScope(.shadowedParen)): arrow(to: .body, pop: .shadowedParen)
+			case (.body, .closeParen, TopScope(.paren)): arrow(to: .identifierBody, pop: .paren)
+			case (.body, .closeParen, TopScope(.shadowedParen)): arrow(to: .identifierBody, pop: .shadowedParen)
 			case (.body, .closeParen, _): break
-			case (.body, .doubleSlash, _): arrow(to: .lineComment)
-			case (.body, .slashStar, _): arrow(to: .multiComment, push: .comment)
-			case (.body, .colon, TopScope(.ternary)):
-				// A ternary operator colon should follow a space. Flag the problem, change to .spaceBody and reprocess this token
-				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
-				arrow(to: .spaceBody)
-				continue
-			case (.body, .colon, _): fallthrough
-			case (.body, .comma, _): arrow(to: .needspaceBody)
-			case (.body, .switchKeyword, _): arrow(to: .body, push: .pendingSwitch)
-			case (.body, .hashIfKeyword, _): arrow(to: .body, push: .hash)
-			case (.body, .hashEndifKeyword, TopScope(.hash)): arrow(to: .body, pop: .hash)
-			case (.body, .hashEndifKeyword, _): break
-				
-			case (.body, .slash, _): break
-			case (.body, .asterisk, _): break
 			case (.body, .backslash, _): break
-			case (.body, .defaultKeyword, _): break
-			case (.body, .caseKeyword, _): break
-			case (.body, .questionMark, _): break
-			case (.body, .hashElseifKeyword, _): break
+			case (.body, .colon, TopScope(.ternary)): arrow(to: .infix)
+			case (.body, .colon, _): arrow(to: .postfix)
+			case (.body, .comma, _): arrow(to: .postfix)
+			case (.body, .op, _): arrow(to: .postfix)
+			case (.body, .questionMark, _): arrow(to: .postfix)
+			case (.body, .identifier, _): arrow(to: .identifierBody)
+			case (.body, .hash, _): arrow(to: .prefix)
+			case (.body, .digit, _): arrow(to: .identifierBody)
+			case (.body, .dollar, _): arrow(to: .prefix)
+			case (.body, .combining, _): break
+			case (.body, .period, _): arrow(to: .postfix)
+			case (.body, .semiColon, _): arrow(to: .postfix)
+			case (.body, .at, _): arrow(to: .prefix)
+			case (.body, .backtick, _): arrow(to: .postfix)
+			case (.body, .slashStar, _): arrow(to: .multiComment, push: .comment)
 			case (.body, .starSlash, _): break
-			case (.body, .other, _): break
+			case (.body, .doubleSlash, _): arrow(to: .lineComment)
+			case (.body, .caseKeyword, _): arrow(to: .identifierBody)
+			case (.body, .defaultKeyword, _): arrow(to: .identifierBody)
+			case (.body, .switchKeyword, _): arrow(to: .identifierBody, push: .pendingSwitch)
+			case (.body, .hashIfKeyword, _): arrow(to: .identifierBody, push: .hash)
+			case (.body, .hashElseKeyword, _): arrow(to: .identifierBody)
+			case (.body, .hashElseifKeyword, _): arrow(to: .identifierBody)
+			case (.body, .hashEndifKeyword, TopScope(.hash)): arrow(to: .identifierBody, pop: .hash)
+			case (.body, .hashEndifKeyword, _): arrow(to: .identifierBody)
+			case (.body, .endOfLine, _): break
+			case (.body, .invalid, _):
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 0)
 			}
 			
 			// Track the "low water mark" of the stack
@@ -342,26 +423,19 @@ public struct WhitespaceTagger {
 				startOfLine = stack.count
 			}
 
-			// Get the next token
-			column += length
-			if let next = nextToken(scanner: &scanner, buffer: &buffer) {
-				current = next
-			} else {
+			// Consume the token
+			previousLength = token.slice.count
+			column += previousLength
+			
+			// Break out of the loop if at end
+			if token.tok == .endOfLine {
 				break
 			}
-		}
-
-		// Handle pending actions at end
-		if let c = current {
-			if state == .indentEnded {
-				let expectedWidth = expectedIndentWidth()
-				if expectedWidth != column {
-					flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidth)
-				}
-			} else if c.token == .space && state != .multiComment && state != .lineComment {
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - c.length, length: 1, expected: 0)
-			}
-		}
+			
+			// Start the next token
+			previousTok = token.tok
+			token = nextToken(scanner: &scanner)
+		} while true
 		
 		// There's some cleanup of the stack to do at the end of the line:
 		//	* every open block/paren on the line before the last should be marked "shadowed"
@@ -425,10 +499,11 @@ public struct WhitespaceTagger {
 		} * indentWidth()
 	}
 
-	func expectedWidthForIndent(endingWith token: Token) -> Int {
+	func expectedWidthForIndent(endingWith token: Tok) -> Int {
 		switch (token, stack.last) {
 		case (.hashEndifKeyword, _): fallthrough
 		case (.hashElseifKeyword, _): fallthrough
+		case (.hashElseKeyword, _): fallthrough
 		case (.closeBrace, _): fallthrough
 		case (.closeBracket, _): fallthrough
 		case (.closeParen, _): fallthrough
@@ -445,140 +520,283 @@ public struct WhitespaceTagger {
 	mutating func flag(regions: inout [TaggedRegion], tag: Tag, start: Int, length: Int, expected: Int) {
 		regions.append(TaggedRegion(start: start, end: start + length, tag: tag, expected: expected))
 	}
+}
 
-	// Generates tokens for the parser by aggregating or substituting tokens from `readNext`.
-	mutating func nextToken(scanner: inout ScalarScanner<String.UnicodeScalarView>, buffer: inout MatchBuffer) -> (token: Token, length: Int)? {
-		var (token, scalar): (token: Token, scalar: UnicodeScalar)
-		do {
-			(token, scalar) = try readNext(scanner: &scanner)
-		} catch { return nil }
-		
-		var count = 1
-		if token.aggregates {
-			// While aggregating "other" tokens, see if it matches one of the keywords we're interested in.
-			var possibleKeyword: Bool = false
-			if token == .other {
-				switch scalar {
-				case "c": fallthrough
-				case "d": fallthrough
-				case "s": fallthrough
-				case "#":
-					possibleKeyword = true
-					buffer = (scalar, "\0", "\0", "\0", "\0", "\0", "\0", "\0")
-				default: break
-				}
-			}
-			
-			do { repeat {
-				let (nextToken, nextScalar) = try readNext(scanner: &scanner)
-				if nextToken != token {
-					try scanner.backtrack()
-					break
-				}
-				
-				// If this is a possible keyword match, make sure the scalars still match the expected
-				if possibleKeyword {
-					if count < (sizeof(MatchBuffer.self) / sizeof(UnicodeScalar.self)) {
-						withUnsafeMutablePointer(&buffer) {
-							UnsafeMutablePointer<UnicodeScalar>($0)[count] = nextScalar
-						}
-					} else {
-						possibleKeyword = false
-					}
-				}
-				
-				count += 1
-			} while true } catch {}
-			
-			// If we matched a keyword, substitute the token
-			if possibleKeyword {
-				switch scalar {
-				case "c":
-					var suffix: MatchBuffer = ("c", "a", "s", "e", "\0", "\0", "\0", "\0")
-					if match(first: &buffer, second: &suffix) { token = .caseKeyword }
-				case "d":
-					var suffix: MatchBuffer = ("d", "e", "f", "a", "u", "l", "t", "\0")
-					if match(first: &buffer, second: &suffix) { token = .defaultKeyword }
-				case "s":
-					var suffix: MatchBuffer = ("s", "w", "i", "t", "c", "h", "\0", "\0")
-					if match(first: &buffer, second: &suffix) { token = .switchKeyword }
-				case "#":
-					var suffix1: MatchBuffer = ("#", "i", "f", "\0", "\0", "\0", "\0", "\0")
-					var suffix2: MatchBuffer = ("#", "e", "l", "s", "e", "i", "f", "\0")
-					var suffix3: MatchBuffer = ("#", "e", "l", "s", "e", "\0", "\0", "\0")
-					var suffix4: MatchBuffer = ("#", "e", "n", "d", "i", "f", "\0", "\0")
-					if match(first: &buffer, second: &suffix1) { token = .hashIfKeyword }
-					else if match(first: &buffer, second: &suffix2) { token = .hashElseifKeyword }
-					else if match(first: &buffer, second: &suffix3) { token = .hashElseifKeyword }
-					else if match(first: &buffer, second: &suffix4) { token = .hashEndifKeyword }
-				default: break
-				}
-			} else if token == .space && count > 1 {
-				token = .multiSpace
-			}
-		} else if token.possibleCompound {
-			do {
-				let (nextToken, _) = try readNext(scanner: &scanner)
-				count += 1
-				
-				switch (token, nextToken) {
-				case (.slash, .slash): token = .doubleSlash
-				case (.slash, .asterisk): token = .slashStar
-				case (.asterisk, .slash): token = .starSlash
-				default:
-					try scanner.backtrack()
-					count -= 1
-				}
-			} catch {}
-		}
-		
-		return (token, length: count)
-	}
+struct Token<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int> {
+	let tok: Tok
+	let slice: C.SubSequence
+}
+
+enum LexerState: ErrorProtocol {
+	case start
+	case aggregating(Tok)
+	case aggregatingIdentifier
+	case possibleOp((UnicodeScalar) -> LexerState)
+	case splitOp(Tok, Int)
+	case periodOp
+	case possibleKeyword((UnicodeScalar) -> LexerState)
+	case keywordOrPossibleKeyword(Tok, (UnicodeScalar) -> LexerState)
+	case keyword(Tok)
+	case singleSpace
+	case singleQuestionMark
 	
-	// Peek at the next scalar and classify the token to which it would belong. NOTE: this is only intended for calling from `nextToken` which aggregates scalars and further matches keywords from "other" globs.
-	mutating func readNext(scanner: inout ScalarScanner<String.UnicodeScalarView>) throws -> (token: Token, scalar: UnicodeScalar) {
-		let scalar = try scanner.readScalar()
-		switch scalar {
-			// Xcode ensures that newlines only appear at the end of line strings. Since we don't care if a line ends with a newline or the end of file we can simply drop all newlines (by returning an "end of collection" error).
-		case "\n": fallthrough
-			
-			// I'd love to reject Windows and classic Mac line endings entirely but it's not reasonable to reject the Xcode line endings setting. Just treat them like newlines.
-		case "\r": throw ScalarScannerError.endedPrematurely(count: 1, at: scanner.consumed - 1)
-			
-		case " ": return (.space, scalar)
-		case "\t": return (.tab, scalar)
-		case "\"": return (.quote, scalar)
-		case "{": return (.openBrace, scalar)
-		case "}": return (.closeBrace, scalar)
-		case "[": return (.openBracket, scalar)
-		case "]": return (.closeBracket, scalar)
-		case "(": return (.openParen, scalar)
-		case ")": return (.closeParen, scalar)
-		case "/": return (.slash, scalar)
-		case "\\": return (.backslash, scalar)
-		case "*": return (.asterisk, scalar)
-		case ":": return (.colon, scalar)
-		case ",": return (.comma, scalar)
-		case "?": return (.questionMark, scalar)
-			
-			// NOTE: I don't know if it's even possible for Xcode to pass a NUL through but it would mess with the keyword parsing so we can't have it classified as "other". Instead, classify it as unexpected whitespace and it will be flagged as invalid.
-		case "\0": fallthrough
-			
-			// Standard set of Unicode whitespace scalars
-		case "\u{000b}": fallthrough
-		case "\u{000c}": fallthrough
-		case "\u{0085}": fallthrough
-		case "\u{00a0}": fallthrough
-		case "\u{1680}": fallthrough
-		case "\u{2000}"..."\u{200a}": fallthrough
-		case "\u{2028}": fallthrough
-		case "\u{2029}": fallthrough
-		case "\u{202f}": fallthrough
-		case "\u{205f}": fallthrough
-		case "\u{3000}": return (.whitespace, scalar)
-			
-		default: return (.other, scalar)
+	func finalize() -> Tok {
+		switch self {
+		case start: return .endOfLine
+		case aggregating(let t): return t
+		case aggregatingIdentifier: return .identifier
+		case possibleOp: return .op
+		case singleSpace: return .space
+		case splitOp(let t, _): return t
+		case periodOp: return .period
+		case singleQuestionMark: return .questionMark
+		case possibleKeyword: return .identifier
+		case keywordOrPossibleKeyword(let t, _): return t
+		case keyword(let t): return t
 		}
+	}
+}
+
+// Generates tokens for the parser by aggregating or substituting tokens from `readNext`.
+func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int>(scanner: inout ScalarScanner<C>) -> Token<C> {
+	let start = scanner.index
+	var state = LexerState.start
+	
+	do { repeat {
+		let scalar = try scanner.readScalar()
+		let tok = classify(scalar)
+		
+		switch (state, tok) {
+		case (.start, .endOfLine): return Token<C>(tok: .endOfLine, slice: scanner.scalars[start..<scanner.index])
+		case (.start, .hash): state = startHash(scalar)
+		case (.start, .identifier): state = startKeyword(scalar)
+		case (.start, .op): state = startOp(scalar)
+		case (.start, .space): state = .singleSpace
+		case (.start, .period): state = .periodOp
+		case (.start, .questionMark): state = .singleQuestionMark
+		case (.start, .tab): fallthrough
+		case (.start, .whitespace): fallthrough
+		case (.start, .digit): fallthrough
+		case (.start, .combining): fallthrough
+		case (.start, .invalid): fallthrough
+		case (.start, .tab): state = .aggregating(tok)
+		case (.start, _): return Token<C>(tok: tok, slice: scanner.scalars[start..<scanner.index])
+		
+		case (.keyword, .identifier): state = .aggregatingIdentifier
+		case (.keyword, .combining): state = .aggregatingIdentifier
+		case (.keyword, .digit): state = .aggregatingIdentifier
+
+		case (.aggregatingIdentifier, .identifier): break
+		case (.aggregatingIdentifier, .combining): break
+		case (.aggregatingIdentifier, .digit): break
+
+		case (.periodOp, .op): break
+		case (.periodOp, .combining): break
+		case (.periodOp, .period): break
+		
+		case (.aggregating(tok), _): break
+		
+		case (.singleSpace, .space): state = .aggregating(.multiSpace)
+
+		case (.singleQuestionMark, .questionMark): fallthrough
+		case (.singleQuestionMark, .op): state = startOp(scalar)
+		
+		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark):
+			state = f(scalar)
+			if case .splitOp(let t, let length) = state {
+				if scanner.scalars[start..<scanner.index].count > length {
+					try scanner.backtrack(count: length)
+					return Token<C>(tok: .op, slice: scanner.scalars[start..<scanner.index])
+				} else {
+					return Token<C>(tok: t, slice: scanner.scalars[start..<scanner.index])
+				}
+			}
+		
+		case (.possibleKeyword(let f), .identifier): state = f(scalar)
+		case (.possibleKeyword(let f), .combining): state = f(scalar)
+		case (.possibleKeyword(let f), .digit): state = f(scalar)
+
+		case (.keywordOrPossibleKeyword(_, let f), .identifier): state = f(scalar)
+		case (.keywordOrPossibleKeyword(_, let f), .combining): state = f(scalar)
+		case (.keywordOrPossibleKeyword(_, let f), .digit): state = f(scalar)
+
+		default:
+			try scanner.backtrack()
+			return Token<C>(tok: state.finalize(), slice: scanner.scalars[start..<scanner.index])
+		}
+	} while true } catch {
+		return Token<C>(tok: state.finalize(), slice: scanner.scalars[start..<scanner.index])
+	}
+}
+
+// Peek at the next scalar and classify the token to which it would belong. NOTE: this is only intended for calling from `nextToken` which aggregates scalars and further matches keywords from "other" globs.
+func classify(_ scalar: UnicodeScalar) -> Tok {
+	switch scalar {
+	case "\n", "\r": return .endOfLine
+		
+	case " ": return .space
+	case "\t": return .tab
+	case "\"": return .quote
+	case "{": return .openBrace
+	case "}": return .closeBrace
+	case "[": return .openBracket
+	case "]": return .closeBracket
+	case "(": return .openParen
+	case ")": return .closeParen
+	case "\\": return .backslash
+	case ":": return .colon
+	case ",": return .comma
+	case "#": return .hash
+	case "$": return .dollar
+	case ".": return .period
+	case ";": return .semiColon
+	case "@": return .at
+	case "`": return .backtick
+	
+	case "?": return .questionMark
+	
+	case "a"..."z", "A"..."Z": fallthrough
+	case "_": fallthrough
+	case "\u{00a8}", "\u{00aa}", "\u{00ad}", "\u{00af}": fallthrough
+	case "\u{00b2}"..."\u{00b5}", "\u{00b7}"..."\u{00ba}": fallthrough
+	case "\u{00bc}"..."\u{00be}", "\u{00c0}"..."\u{00d6}": fallthrough
+	case "\u{00d8}"..."\u{00f6}", "\u{00f8}"..."\u{00ff}": fallthrough
+	case "\u{0100}"..."\u{02ff}", "\u{0370}"..."\u{167f}": fallthrough
+	case "\u{1681}"..."\u{180d}", "\u{180f}"..."\u{1dbf}": fallthrough
+	case "\u{1e00}"..."\u{1fff}", "\u{200b}"..."\u{200d}": fallthrough
+	case "\u{202a}"..."\u{202e}", "\u{203f}"..."\u{2040}": fallthrough
+	case "\u{2054}": fallthrough
+	case "\u{2060}"..."\u{206f}", "\u{2070}"..."\u{20cf}": fallthrough
+	case "\u{2100}"..."\u{218f}", "\u{2460}"..."\u{24ff}": fallthrough
+	case "\u{2776}"..."\u{2793}", "\u{2c00}"..."\u{2dff}": fallthrough
+	case "\u{2e80}"..."\u{2fff}", "\u{3004}"..."\u{3007}": fallthrough
+	case "\u{3021}"..."\u{302f}", "\u{3031}"..."\u{303f}": fallthrough
+	case "\u{3040}"..."\u{d7ff}", "\u{f900}"..."\u{fd3d}": fallthrough
+	case "\u{fd40}"..."\u{fdcf}", "\u{fdf0}"..."\u{fe1f}": fallthrough
+	case "\u{fe30}"..."\u{fe44}", "\u{fe47}"..."\u{fffd}": fallthrough
+	case "\u{10000}"..."\u{1fffd}", "\u{20000}"..."\u{2fffd}": fallthrough
+	case "\u{30000}"..."\u{3fffd}", "\u{40000}"..."\u{4fffd}": fallthrough
+	case "\u{50000}"..."\u{5fffd}", "\u{60000}"..."\u{6fffd}": fallthrough
+	case "\u{70000}"..."\u{7fffd}", "\u{80000}"..."\u{8fffd}": fallthrough
+	case "\u{90000}"..."\u{9fffd}", "\u{a0000}"..."\u{afffd}": fallthrough
+	case "\u{b0000}"..."\u{bfffd}", "\u{c0000}"..."\u{cfffd}": fallthrough
+	case "\u{d0000}"..."\u{dfffd}", "\u{e0000}"..."\u{efffd}": return .identifier
+
+	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9": return .digit
+	
+	case "\u{0300}"..."\u{036f}", "\u{1dc0}"..."\u{1dff}": fallthrough
+	case "\u{20d0}"..."\u{20ff}", "\u{fe20}"..."\u{fe2f}": return .combining
+
+	case "/", "=", "-", "+", "!", "*", "%", "<", ">", "&": fallthrough
+	case "|", "^", "~": fallthrough
+	case "\u{00a1}"..."\u{00a7}", "\u{00a9}"..."\u{00ab}": fallthrough
+	case "\u{00ac}"..."\u{00ae}", "\u{00b0}"..."\u{00b1}": fallthrough
+	case "\u{00b6}"..."\u{00bb}", "\u{00bf}"..."\u{00d7}": fallthrough
+	case "\u{00f7}": fallthrough
+	case "\u{2016}"..."\u{2017}", "\u{2020}"..."\u{2027}": fallthrough
+	case "\u{2030}"..."\u{203e}", "\u{2041}"..."\u{2053}": fallthrough
+	case "\u{2055}"..."\u{205e}", "\u{2190}"..."\u{23ff}": fallthrough
+	case "\u{2500}"..."\u{2775}", "\u{2794}"..."\u{2bff}": fallthrough
+	case "\u{3e00}"..."\u{2e7f}", "\u{3001}"..."\u{3003}": fallthrough
+	case "\u{3008}"..."\u{3030}":  return .op
+	
+	case "\u{000b}", "\u{000c}", "\0": return .whitespace
+		
+	default: return .invalid
+	}
+}
+
+func startOp(_ scalar: UnicodeScalar) -> LexerState {
+	switch scalar {
+	case "/":
+		return LexerState.possibleOp {
+			switch $0 {
+			case "*": return LexerState.splitOp(.slashStar, 2)
+			case "/": return LexerState.splitOp(.doubleSlash, 2)
+			default: return startOp($0)
+			}
+		}
+	case "*":
+		return LexerState.possibleOp {
+			$0 == "/" ? LexerState.splitOp(.starSlash, 2) : startOp($0)
+		}
+	default: return LexerState.possibleOp { startOp($0) }
+	}
+}
+
+func startHash(_ scalar: UnicodeScalar) -> LexerState {
+	return LexerState.possibleKeyword {
+		switch $0 {
+		case "i":
+			return LexerState.possibleKeyword {
+				$0 == "f" ? .keyword(.hashIfKeyword) : .aggregating(.identifier)
+			}
+		case "e":
+			return LexerState.possibleKeyword {
+				switch $0 {
+				case "l":
+					return LexerState.possibleKeyword {
+						$0 == "s" ? LexerState.possibleKeyword {
+							$0 == "e" ? LexerState.keywordOrPossibleKeyword(.hashElseKeyword) {
+								$0 == "i" ? LexerState.possibleKeyword {
+									$0 == "f" ? .keyword(.hashElseifKeyword) : .aggregating(.identifier)
+								} : .aggregating(.identifier)
+							} : .aggregating(.identifier)
+						} : .aggregating(.identifier)
+					}
+				case "n":
+					return LexerState.possibleKeyword {
+						$0 == "d" ? LexerState.possibleKeyword {
+							$0 == "i" ? LexerState.possibleKeyword {
+								$0 == "f" ? .keyword(.hashEndifKeyword) : .aggregating(.identifier)
+							} : .aggregating(.identifier)
+						} : .aggregating(.identifier)
+					}
+				default: return .aggregating(.identifier)
+				}
+			}
+		default: return .aggregating(.identifier)
+		}
+	}
+}
+
+func startKeyword(_ scalar: UnicodeScalar) -> LexerState {
+	switch scalar {
+	case "c":
+		return LexerState.possibleKeyword {
+			$0 == "a" ? LexerState.possibleKeyword {
+				$0 == "s" ? LexerState.possibleKeyword {
+					$0 == "e" ? .keyword(.caseKeyword) : .aggregating(.identifier)
+				} : .aggregating(.identifier)
+			} : .aggregating(.identifier)
+		}
+	case "d":
+		return LexerState.possibleKeyword {
+			$0 == "e" ? LexerState.possibleKeyword {
+				$0 == "f" ? LexerState.possibleKeyword {
+					$0 == "a" ? LexerState.possibleKeyword {
+						$0 == "u" ? LexerState.possibleKeyword {
+							$0 == "l" ? LexerState.possibleKeyword {
+								$0 == "t" ? .keyword(.defaultKeyword) : .aggregating(.identifier)
+							} : .aggregating(.identifier)
+						} : .aggregating(.identifier)
+					} : .aggregating(.identifier)
+				} : .aggregating(.identifier)
+			} : .aggregating(.identifier)
+		}
+	case "s":
+		return LexerState.possibleKeyword {
+			$0 == "w" ? LexerState.possibleKeyword {
+				$0 == "i" ? LexerState.possibleKeyword {
+					$0 == "t" ? LexerState.possibleKeyword {
+						$0 == "c" ? LexerState.possibleKeyword {
+							$0 == "h" ? .keyword(.switchKeyword) : .aggregating(.identifier)
+						} : .aggregating(.identifier)
+					} : .aggregating(.identifier)
+				} : .aggregating(.identifier)
+			} : .aggregating(.identifier)
+		}
+	default: return .aggregating(.identifier)
 	}
 }
 
@@ -591,15 +809,15 @@ struct ValidIndent {
 	}
 }
 
-func ~=(left: ValidIndent, right: Token) -> Bool {
-	switch (right, left.tagger.stack.last) {
+func ~=(test: ValidIndent, token: Tok) -> Bool {
+	switch (token, test.tagger.stack.last) {
 	case (.slashStar, .some(.switchScope)): fallthrough
 	case (.doubleSlash, .some(.switchScope)):
-		if left.column == left.tagger.expectedWidthForIndent(endingWith: right) - left.tagger.indentWidth() {
+		if test.column == test.tagger.expectedWidthForIndent(endingWith: token) - test.tagger.indentWidth() {
 			return true
 		}
 		fallthrough
-	default: return left.column == left.tagger.expectedWidthForIndent(endingWith: right)
+	default: return test.column == test.tagger.expectedWidthForIndent(endingWith: token)
 	}
 }
 
@@ -610,8 +828,8 @@ struct UniqueScope {
 	}
 }
 
-func ~=(left: UniqueScope, right: Array<Scope>) -> Bool {
-	return right.reduce(0) { $1 == left.scope ? $0 + 1 : $0 } == 1
+func ~=(test: UniqueScope, array: Array<Scope>) -> Bool {
+	return array.reduce(0) { $1 == test.scope ? $0 + 1 : $0 } == 1
 }
 
 struct IndentToken {
@@ -621,10 +839,10 @@ struct IndentToken {
 	}
 }
 
-func ~=(left: IndentToken, right: Token) -> Bool {
+func ~=(left: IndentToken, right: Tok) -> Bool {
 	switch left.style {
 	case .tabs: return right == .tab
-	case .spaces: return right == .space || right == .multiSpace
+	case .spaces: return right == .space
 	}
 }
 
@@ -635,8 +853,8 @@ struct TopScope {
 	}
 }
 
-func ~=(left: TopScope, right: Array<Scope>) -> Bool {
-	return right.last == left.scope
+func ~=(test: TopScope, array: Array<Scope>) -> Bool {
+	return array.last == test.scope
 }
 
 typealias MatchBuffer = (UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar)
