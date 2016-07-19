@@ -103,6 +103,7 @@ enum ParseState {
 
 	// Start of the line
 	case indent
+	case invalidIndent
 	
 	// First non-indent token is parsed in this state so any effect on the indent can be considered
 	case indentEnded
@@ -226,10 +227,23 @@ public struct WhitespaceTagger {
 			case (.lineComment, _, _): break
 				
 			// Start of the line
-			case (.indent, IndentToken(indentationStyle), _): arrow(to: .indentEnded)
+			case (.indent, IndentToken(indentationStyle), _): break
+			case (.indent, .space, _): arrow(to: .invalidIndent)
+			case (.indent, .multiSpace, _): arrow(to: .invalidIndent)
+			case (.indent, .tab, _): arrow(to: .invalidIndent)
+			case (.indent, .whitespace, _): arrow(to: .invalidIndent)
 			case (.indent, _, _):
-				// No indent present, change to .indentEnded and reprocess this token
 				arrow(to: .indentEnded)
+				continue
+			
+			// Incorrect whitespace encountered during indent
+			case (.invalidIndent, .space, _): break
+			case (.invalidIndent, .multiSpace, _): break
+			case (.invalidIndent, .tab, _): break
+			case (.invalidIndent, .whitespace, _): break
+			case (.invalidIndent, _, _):
+				flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidthForIndent(endingWith: token.tok))
+				arrow(to: .body)
 				continue
 				
 			// First non-indent token is parsed in this state so any effect on the indent can be considered
@@ -594,6 +608,7 @@ func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSeq
 		case (.periodOp, .combining): break
 		case (.periodOp, .period): break
 		
+		case (.aggregating(.multiSpace), .space): break
 		case (.aggregating(tok), _): break
 		
 		case (.singleSpace, .space): state = .aggregating(.multiSpace)

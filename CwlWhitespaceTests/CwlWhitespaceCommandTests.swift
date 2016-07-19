@@ -79,4 +79,29 @@ class CwlWhitespaceCommandTests: XCTestCase {
 		XCTAssert(selections[0] == (line: 0, start: 10, end: 11))
 		XCTAssert(selections[1] == (line: 0, start: 11, end: 12))
 	}
+	
+	func testBlendedIndentWhitespace() {
+		let lines = [
+			"{\n",
+			"    public func makeIterator() -> Optional.Iterator {\n",
+			"\t\treturn OptionalIterator(value: self)\n",
+			"\t }\n",
+			"}\n"
+		]
+		let mutableLines = NSMutableArray(array: lines)
+		let selections = processLines(mutableLines, usesTabs: true, indentationWidth: 4, correctProblems: true, limitToLines: 0..<5)
+
+		let lines2 = [
+			"{\n",
+			"\tpublic func makeIterator() -> Optional.Iterator {\n",
+			"\t\treturn OptionalIterator(value: self)\n",
+			"\t}\n",
+			"}\n"
+		]
+
+		XCTAssert(((mutableLines as [AnyObject]) as? [String])! == lines2)
+		XCTAssert(selections.count == 2)
+		XCTAssert(selections[0] == (line: 1, start: 0, end: 1))
+		XCTAssert(selections[1] == (line: 3, start: 0, end: 1))
+	}
 }

@@ -31,7 +31,7 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 	func testSingleSpace() {
 		var tagger = WhitespaceTagger()
 		let regions = tagger.parseLine(" ")
-		XCTAssert(regions == [TaggedRegion(start: 0, end: 1, tag: .unexpectedWhitespace, expected: 0)])
+		XCTAssert(regions == [TaggedRegion(start: 0, end: 1, tag: .incorrectIndent, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
@@ -59,7 +59,7 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 	func testBlockCommentWithLeadingSpace() {
 		var tagger = WhitespaceTagger()
 		let regions = tagger.parseLine("  // This is a comment\n")
-		XCTAssert(regions == [TaggedRegion(start: 0, end: 2, tag: .unexpectedWhitespace, expected: 0)])
+		XCTAssert(regions == [TaggedRegion(start: 0, end: 2, tag: .incorrectIndent, expected: 0)])
 		XCTAssert(tagger.stack.isEmpty)
 	}
 	
@@ -296,7 +296,67 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		XCTAssert(regions2.isEmpty)
 		XCTAssert(regions3.isEmpty)
 	}
+	
+	func testSpaceInsteadOfTabs() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("{")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger.stack == [.block])
 
+		let regions2 = tagger.parseLine(" b")
+		XCTAssert(regions2 == [TaggedRegion(start: 0, end: 1, tag: .incorrectIndent, expected: 1)])
+		XCTAssert(tagger.stack == [.block])
+
+		let regions3 = tagger.parseLine("}")
+		XCTAssert(regions3.isEmpty)
+		XCTAssert(tagger.stack.isEmpty)
+	}
+	
+	func testSpaceInsteadOfTabs2() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("{")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger.stack == [.block])
+
+		let regions4 = tagger.parseLine("\t{")
+		XCTAssert(regions4.isEmpty)
+		XCTAssert(tagger.stack == [.block, .block])
+
+		let regions2 = tagger.parseLine("\t b")
+		XCTAssert(regions2 == [TaggedRegion(start: 0, end: 2, tag: .incorrectIndent, expected: 2)])
+		XCTAssert(tagger.stack == [.block, .block])
+
+		let regions3 = tagger.parseLine("\t}")
+		XCTAssert(regions3.isEmpty)
+		XCTAssert(tagger.stack == [.block])
+
+		let regions5 = tagger.parseLine("}")
+		XCTAssert(regions5.isEmpty)
+		XCTAssert(tagger.stack.isEmpty)
+	}
+	
+	func testSpaceInsteadOfTabs3() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("{")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger.stack == [.block])
+
+		let regions4 = tagger.parseLine("\t{")
+		XCTAssert(regions4.isEmpty)
+		XCTAssert(tagger.stack == [.block, .block])
+
+		let regions2 = tagger.parseLine(" \tb")
+		XCTAssert(regions2 == [TaggedRegion(start: 0, end: 2, tag: .incorrectIndent, expected: 2)])
+		XCTAssert(tagger.stack == [.block, .block])
+
+		let regions3 = tagger.parseLine("\t}")
+		XCTAssert(regions3.isEmpty)
+		XCTAssert(tagger.stack == [.block])
+
+		let regions5 = tagger.parseLine("}")
+		XCTAssert(regions5.isEmpty)
+		XCTAssert(tagger.stack.isEmpty)
+	}
 	
 	func testIndentNesting() {
 		var tagger = WhitespaceTagger()
