@@ -335,20 +335,27 @@ public struct WhitespaceTagger {
 
 			// An operator parsed that should be followed a space or a dot operator (i.e. a left-hugging colon, postfix operator or comma)
 			case (.postfix, .openParen, _) where previousTok == .period: fallthrough
+			case (.postfix, .quote, _) where previousTok == .period: fallthrough
 			case (.postfix, .digit, _) where previousTok == .period: fallthrough
+			case (.postfix, .dollar, _) where previousTok == .period: fallthrough
 			case (.postfix, .identifier, _) where previousTok == .period:
 				arrow(to: .body)
 				continue
 			case (.postfix, .openAngle, _): break
 			case (.postfix, .closeAngle, _): break
-			case (.postfix, .openParen, _): fallthrough
+			case (.postfix, .openParen, _) where previousTok == .op: fallthrough
+			case (.postfix, .quote, _) where previousTok == .op: fallthrough
 			case (.postfix, .digit, _) where previousTok == .op: fallthrough
+			case (.postfix, .dollar, _) where previousTok == .op: fallthrough
 			case (.postfix, .identifier, _) where previousTok == .op:
 				flag(regions: &regions, tag: .missingSpace, start: column - previousLength, length: 0, expected: 1)
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .infix)
 				continue
+			case (.postfix, .openParen, _): fallthrough
+			case (.postfix, .quote, _): fallthrough
 			case (.postfix, .digit, _): fallthrough
+			case (.postfix, .dollar, _): fallthrough
 			case (.postfix, .identifier, _):
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
@@ -382,9 +389,11 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - previousLength - 1, length: 1, expected: 0)
 				arrow(to: .body)
 				continue
-			case (.infix, .digit, _): fallthrough
-			case (.infix, .identifier, _): fallthrough
 			case (.infix, .openParen, _): fallthrough
+			case (.infix, .quote, _): fallthrough
+			case (.infix, .digit, _): fallthrough
+			case (.infix, .dollar, _): fallthrough
+			case (.infix, .identifier, _): fallthrough
 			case (.infix, .openBracket, _):
 				arrow(to: .prefix)
 				continue

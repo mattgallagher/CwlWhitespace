@@ -446,8 +446,11 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 
 		let regions3 = tagger.parseLine("(a.b)...(c.d) ... -e...(-f)")
 		XCTAssert(regions3 == [TaggedRegion(start: 13, end: 14, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 17, end: 18, tag: .unexpectedWhitespace, expected: 0)])
-	}
 
+		let regions4 = tagger.parseLine("case \"a\"...\"z\", \"A\"...\"Z\": fallthrough")
+		XCTAssert(regions4.isEmpty)
+	}
+	
 	func testSingleQuote() {
 		var tagger = WhitespaceTagger()
 		let regions1 = tagger.parseLine("let x = \"'\"")
