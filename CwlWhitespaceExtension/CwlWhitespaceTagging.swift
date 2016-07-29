@@ -162,6 +162,7 @@ public enum Tag {
 	case multipleSpaces
 	case unexpectedWhitespace
 	case missingSpace
+	case invalidCharacter
 }
 
 /// The WhitespaceTagger scans and parses single line at a time using a pushdown automata.
@@ -429,7 +430,7 @@ public struct WhitespaceTagger {
 			case (.body, .hashEndifKeyword, _): arrow(to: .identifierBody)
 			case (.body, .endOfLine, _): break
 			case (.body, .invalid, _):
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 0)
+				flag(regions: &regions, tag: .invalidCharacter, start: column, length: token.slice.count, expected: 0)
 			}
 			
 			// Track the "low water mark" of the stack
@@ -712,7 +713,7 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case "\u{2030}"..."\u{203e}", "\u{2041}"..."\u{2053}": fallthrough
 	case "\u{2055}"..."\u{205e}", "\u{2190}"..."\u{23ff}": fallthrough
 	case "\u{2500}"..."\u{2775}", "\u{2794}"..."\u{2bff}": fallthrough
-	case "\u{3e00}"..."\u{2e7f}", "\u{3001}"..."\u{3003}": fallthrough
+	case "\u{2e00}"..."\u{2e7f}", "\u{3001}"..."\u{3003}": fallthrough
 	case "\u{3008}"..."\u{3030}":  return .op
 	
 	case "\u{000b}", "\u{000c}", "\0": return .whitespace
