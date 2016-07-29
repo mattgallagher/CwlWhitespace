@@ -438,7 +438,7 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 
 	func testDotOperators() {
 		var tagger = WhitespaceTagger()
-		let regions1 = tagger.parseLine("a.b...c.d..<(e + f * g! - h? & _ ^ i)")
+		let regions1 = tagger.parseLine("a.b...c.d..<(e + f * g! - h? & _ ^ i << j >> k < l > m)..>7")
 		XCTAssert(regions1.isEmpty)
 
 		let regions2 = tagger.parseLine("a.b ... c.d ..< e")
@@ -455,5 +455,17 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 
 		let regions2 = tagger.parseLine("let x = 'y'")
 		XCTAssert(regions2 == [TaggedRegion(start: 8, end: 9, tag: .invalidCharacter, expected: 0), TaggedRegion(start: 10, end: 11, tag: .invalidCharacter, expected: 0)])
+	}
+
+	func testGenericParams() {
+		var tagger = WhitespaceTagger()
+		let regions1 = tagger.parseLine("let x: A<B>")
+		XCTAssert(regions1.isEmpty)
+
+		let regions2 = tagger.parseLine("func A<B>() {}")
+		XCTAssert(regions2.isEmpty)
+
+		let regions3 = tagger.parseLine("func A< B >() {}")
+		XCTAssert(regions3 == [TaggedRegion(start: 7, end: 8, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 9, end: 10, tag: .unexpectedWhitespace, expected: 0)])
 	}
 }

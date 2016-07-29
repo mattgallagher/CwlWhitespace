@@ -34,6 +34,8 @@ enum Tok {
 	case closeBracket
 	case openParen
 	case closeParen
+	case openAngle
+	case closeAngle
 	case backslash
 	case colon
 	case comma
@@ -76,6 +78,7 @@ enum Scope {
 	case string
 	case interpolation
 	case paren
+	case angle
 	case block
 	case bracket
 	case hash
@@ -119,6 +122,9 @@ enum ParseState {
 	
 	// Left brace just parsed
 	case braceBody
+	
+	// Left brace just parsed
+	case angleBody
 	
 	// An operator parsed that should be followed a space or a dot operator (i.e. a left-hugging colon, postfix operator or comma)
 	case postfix
@@ -260,6 +266,8 @@ public struct WhitespaceTagger {
 			case (.spaceBody, .colon, TopScope(.ternary)): arrow(to: .infix, pop: .ternary)
 			case (.spaceBody, .questionMark, _): arrow(to: .infix, push: .ternary)
 			case (.spaceBody, .op, _): arrow(to: .infix)
+			case (.spaceBody, .openAngle, _): arrow(to: .infix)
+			case (.spaceBody, .closeAngle, _): arrow(to: .infix)
 			case (.spaceBody, .period, _): arrow(to: .infix)
 			case (.spaceBody, .colon, _): fallthrough
 			case (.spaceBody, .closeParen, _): fallthrough
@@ -308,6 +316,11 @@ public struct WhitespaceTagger {
 				arrow(to: .body)
 				continue
 
+			// Left angle just parsed
+			case (.angleBody, _, _):
+				arrow(to: .body)
+				continue
+
 			// Left brace just parsed
 			case (.braceBody, .openBrace, _): fallthrough
 			case (.braceBody, .closeBrace, _):
@@ -322,15 +335,20 @@ public struct WhitespaceTagger {
 
 			// An operator parsed that should be followed a space or a dot operator (i.e. a left-hugging colon, postfix operator or comma)
 			case (.postfix, .openParen, _) where previousTok == .period: fallthrough
+			case (.postfix, .digit, _) where previousTok == .period: fallthrough
 			case (.postfix, .identifier, _) where previousTok == .period:
 				arrow(to: .body)
 				continue
+			case (.postfix, .openAngle, _): break
+			case (.postfix, .closeAngle, _): break
 			case (.postfix, .openParen, _): fallthrough
+			case (.postfix, .digit, _) where previousTok == .op: fallthrough
 			case (.postfix, .identifier, _) where previousTok == .op:
 				flag(regions: &regions, tag: .missingSpace, start: column - previousLength, length: 0, expected: 1)
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .infix)
 				continue
+			case (.postfix, .digit, _): fallthrough
 			case (.postfix, .identifier, _):
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
@@ -353,6 +371,18 @@ public struct WhitespaceTagger {
 				continue
 
 			// A space, then an operator just parsed (i.e. binary operator or prefix operator)
+			case (.infix, .space, _) where previousTok == .period:
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - previousLength - 1, length: 1, expected: 0)
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 0)
+				arrow(to: .spaceBody)
+			case (.infix, .space, _):
+				// We got the required space
+				arrow(to: .spaceBody)
+			case (.infix, _, _) where previousTok == .closeAngle:
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - previousLength - 1, length: 1, expected: 0)
+				arrow(to: .body)
+				continue
+			case (.infix, .digit, _): fallthrough
 			case (.infix, .identifier, _): fallthrough
 			case (.infix, .openParen, _): fallthrough
 			case (.infix, .openBracket, _):
@@ -364,16 +394,9 @@ public struct WhitespaceTagger {
 				arrow(to: .body)
 				continue
 			case (.infix, .comma, _): break
-			case (.infix, .space, _) where previousTok == .period:
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - previousLength - 1, length: 1, expected: 0)
-				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 0)
-				arrow(to: .spaceBody)
 			case (.infix, .closeParen, _): fallthrough
 			case (.infix, .closeBracket, _): fallthrough
 			case (.infix, .endOfLine, _): fallthrough
-			case (.infix, .space, _):
-				// We got the required space
-				arrow(to: .spaceBody)
 			case (.infix, _, _):
 				// Failed to get required space, flag the problem and change to .body to reprocess the token normally
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
@@ -402,6 +425,9 @@ public struct WhitespaceTagger {
 			case (.body, .closeParen, TopScope(.paren)): arrow(to: .identifierBody, pop: .paren)
 			case (.body, .closeParen, TopScope(.shadowedParen)): arrow(to: .identifierBody, pop: .shadowedParen)
 			case (.body, .closeParen, _): break
+			case (.body, .openAngle, _): arrow(to: .angleBody, push: .angle)
+			case (.body, .closeAngle, TopScope(.angle)): arrow(to: .identifierBody, pop: .angle)
+			case (.body, .closeAngle, _): break
 			case (.body, .backslash, _): break
 			case (.body, .colon, TopScope(.ternary)): arrow(to: .infix)
 			case (.body, .colon, _): arrow(to: .postfix)
@@ -554,6 +580,8 @@ enum LexerState: ErrorProtocol {
 	case keyword(Tok)
 	case singleSpace
 	case singleQuestionMark
+	case singleOpenAngle
+	case singleCloseAngle
 	
 	func finalize() -> Tok {
 		switch self {
@@ -565,6 +593,8 @@ enum LexerState: ErrorProtocol {
 		case splitOp(let t, _): return t
 		case periodOp: return .period
 		case singleQuestionMark: return .questionMark
+		case singleOpenAngle: return .openAngle
+		case singleCloseAngle: return .closeAngle
 		case possibleKeyword: return .identifier
 		case keywordOrPossibleKeyword(let t, _): return t
 		case keyword(let t): return t
@@ -589,6 +619,8 @@ func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSeq
 		case (.start, .space): state = .singleSpace
 		case (.start, .period): state = .periodOp
 		case (.start, .questionMark): state = .singleQuestionMark
+		case (.start, .openAngle): state = .singleOpenAngle
+		case (.start, .closeAngle): state = .singleCloseAngle
 		case (.start, .tab): fallthrough
 		case (.start, .whitespace): fallthrough
 		case (.start, .digit): fallthrough
@@ -606,6 +638,8 @@ func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSeq
 		case (.aggregatingIdentifier, .digit): break
 
 		case (.periodOp, .op): break
+		case (.periodOp, .openAngle): break
+		case (.periodOp, .closeAngle): break
 		case (.periodOp, .combining): break
 		case (.periodOp, .period): break
 		
@@ -614,10 +648,11 @@ func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSeq
 		
 		case (.singleSpace, .space): state = .aggregating(.multiSpace)
 
-		case (.singleQuestionMark, .questionMark): fallthrough
-		case (.singleQuestionMark, .op): state = startOp(scalar)
+		case (.singleOpenAngle, .questionMark), (.singleOpenAngle, .op), (.singleOpenAngle, .openAngle), (.singleOpenAngle, .closeAngle): fallthrough
+		case (.singleCloseAngle, .questionMark), (.singleCloseAngle, .op), (.singleCloseAngle, .openAngle), (.singleCloseAngle, .closeAngle): fallthrough
+		case (.singleQuestionMark, .questionMark), (.singleQuestionMark, .op), (.singleQuestionMark, .openAngle), (.singleQuestionMark, .closeAngle): state = startOp(scalar)
 		
-		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark):
+		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark), (.possibleOp(let f), .openAngle), (.possibleOp(let f), .closeAngle):
 			state = f(scalar)
 			if case .splitOp(let t, let length) = state {
 				if scanner.scalars[start..<scanner.index].count > length {
@@ -659,6 +694,8 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case "]": return .closeBracket
 	case "(": return .openParen
 	case ")": return .closeParen
+	case "<": return .openAngle
+	case ">": return .closeAngle
 	case "\\": return .backslash
 	case ":": return .colon
 	case ",": return .comma
@@ -703,7 +740,7 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case "\u{0300}"..."\u{036f}", "\u{1dc0}"..."\u{1dff}": fallthrough
 	case "\u{20d0}"..."\u{20ff}", "\u{fe20}"..."\u{fe2f}": return .combining
 
-	case "/", "=", "-", "+", "!", "*", "%", "<", ">", "&": fallthrough
+	case "/", "=", "-", "+", "!", "*", "%", "&": fallthrough
 	case "|", "^", "~": fallthrough
 	case "\u{00a1}"..."\u{00a7}", "\u{00a9}"..."\u{00ab}": fallthrough
 	case "\u{00ac}"..."\u{00ae}", "\u{00b0}"..."\u{00b1}": fallthrough
