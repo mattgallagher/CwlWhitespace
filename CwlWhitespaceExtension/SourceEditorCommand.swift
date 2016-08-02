@@ -22,7 +22,7 @@ import Foundation
 import XcodeKit
 
 class SourceEditorCommand: NSObject, XCSourceEditorCommand {
-	func perform(with invocation: XCSourceEditorCommandInvocation, completionHandler: (NSError?) -> Void ) -> Void {
+   func perform(with invocation: XCSourceEditorCommandInvocation, completionHandler: (Error?) -> Void) {
 		// Limit changes when correcting to the selected range of lines
 		var correctRange = 0..<invocation.buffer.lines.count
 		if invocation.buffer.selections.count == 1, let s = invocation.buffer.selections.firstObject as? XCSourceTextRange, s.start.line != s.end.line || s.start.column != s.end.column {

@@ -50,7 +50,7 @@ enum Tok {
 	case semiColon
 	case at
 	case backtick
-
+	
 	// Two scalar tokens
 	case slashStar
 	case starSlash
@@ -64,7 +64,7 @@ enum Tok {
 	case hashElseKeyword
 	case hashElseifKeyword
 	case hashEndifKeyword
-
+	
 	// Newlines and carriage returns
 	case endOfLine
 	
@@ -103,7 +103,7 @@ enum ParseState {
 	
 	// Skipping to end of line
 	case lineComment
-
+	
 	// Start of the line
 	case indent
 	case invalidIndent
@@ -193,7 +193,7 @@ public struct WhitespaceTagger {
 	/// Runs the parser
 	/// - parameter line: the text over which the parser will run
 	/// - returns: an array of regions in the text that violated the whitespace expectations
-	public mutating func parseLine<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.Iterator.Element == UnicodeScalar, C.SubSequence.IndexDistance == Int>(_ line: C) -> [TaggedRegion] {
+	public mutating func parseLine<C: Collection>(_ line: C) -> [TaggedRegion] where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.Iterator.Element == UnicodeScalar, C.SubSequence.IndexDistance == Int {
 		var scanner = ScalarScanner<C>(scalars: line)
 		var regions = [TaggedRegion]()
 		
@@ -207,7 +207,7 @@ public struct WhitespaceTagger {
 		var startOfLine = stack.count
 		var previousTok = Tok.invalid
 		var token = nextToken(scanner: &scanner)
-
+		
 		repeat {
 			#if DEBUG
 				// Handy debug statement:
@@ -242,7 +242,7 @@ public struct WhitespaceTagger {
 			case (.indent, _, _):
 				arrow(to: .indentEnded)
 				continue
-			
+				
 			// Incorrect whitespace encountered during indent
 			case (.invalidIndent, .space, _): break
 			case (.invalidIndent, .multiSpace, _): break
@@ -261,7 +261,7 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .incorrectIndent, start: 0, length: column, expected: expectedWidthForIndent(endingWith: token.tok))
 				arrow(to: .body)
 				continue
-			
+				
 			// Space after non-whitespace, non-operator.
 			case (.spaceBody, .colon, TopScope(.ternary)): arrow(to: .infix, pop: .ternary)
 			case (.spaceBody, .questionMark, _): arrow(to: .infix, push: .ternary)
@@ -281,7 +281,7 @@ public struct WhitespaceTagger {
 			case (.spaceBody, _, _):
 				arrow(to: .body)
 				continue
-			
+				
 			// An identifier just parsed (or other token that may be followed by a postfix operator, dot operator or space but not another identifier or open scope)
 			case (.identifierBody, .space, _): arrow(to: .spaceBody)
 			case (.identifierBody, .openBrace, _): fallthrough
@@ -315,12 +315,12 @@ public struct WhitespaceTagger {
 			case (.parenBody, _, _):
 				arrow(to: .body)
 				continue
-
+				
 			// Left angle just parsed
 			case (.angleBody, _, _):
 				arrow(to: .body)
 				continue
-
+				
 			// Left brace just parsed
 			case (.braceBody, .openBrace, _): fallthrough
 			case (.braceBody, .closeBrace, _):
@@ -332,7 +332,7 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
 				continue
-
+				
 			// An operator parsed that should be followed a space or a dot operator (i.e. a left-hugging colon, postfix operator or comma)
 			case (.postfix, .openParen, _) where previousTok == .period: fallthrough
 			case (.postfix, .quote, _) where previousTok == .period: fallthrough
@@ -366,7 +366,7 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
 				continue
-
+				
 			// A space, then an operator just parsed (i.e. binary operator or prefix operator)
 			case (.prefix, .openBrace, _): fallthrough
 			case (.prefix, .closeBrace, _):
@@ -376,7 +376,7 @@ public struct WhitespaceTagger {
 			case (.prefix, _, _):
 				arrow(to: .body)
 				continue
-
+				
 			// A space, then an operator just parsed (i.e. binary operator or prefix operator)
 			case (.infix, .space, _) where previousTok == .period:
 				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - previousLength - 1, length: 1, expected: 0)
@@ -411,7 +411,7 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
 				continue
-
+				
 			// Non-whitespace expected (no other states will be flagged except those that are invalid everywhere). Used as the starting state for a line and the fallback state for other scenarios.
 			case (.body, .space, _): fallthrough
 			case (.body, .tab, _): fallthrough
@@ -472,7 +472,7 @@ public struct WhitespaceTagger {
 			if stack.count < startOfLine {
 				startOfLine = stack.count
 			}
-
+			
 			// Consume the token
 			previousLength = token.slice.count
 			column += previousLength
@@ -548,7 +548,7 @@ public struct WhitespaceTagger {
 			}
 		} * indentWidth()
 	}
-
+	
 	func expectedWidthForIndent(endingWith token: Tok) -> Int {
 		switch (token, stack.last) {
 		case (.hashEndifKeyword, _): fallthrough
@@ -565,19 +565,19 @@ public struct WhitespaceTagger {
 		default: return expectedIndentWidth()
 		}
 	}
-
+	
 	// Append a flagged region for emitting.
 	mutating func flag(regions: inout [TaggedRegion], tag: Tag, start: Int, length: Int, expected: Int) {
 		regions.append(TaggedRegion(start: start, end: start + length, tag: tag, expected: expected))
 	}
 }
 
-struct Token<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int> {
+struct Token<C: Collection> where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int {
 	let tok: Tok
 	let slice: C.SubSequence
 }
 
-enum LexerState: ErrorProtocol {
+enum LexerState: Error {
 	case start
 	case aggregating(Tok)
 	case aggregatingIdentifier
@@ -594,25 +594,25 @@ enum LexerState: ErrorProtocol {
 	
 	func finalize() -> Tok {
 		switch self {
-		case start: return .endOfLine
-		case aggregating(let t): return t
-		case aggregatingIdentifier: return .identifier
-		case possibleOp: return .op
-		case singleSpace: return .space
-		case splitOp(let t, _): return t
-		case periodOp: return .period
-		case singleQuestionMark: return .questionMark
-		case singleOpenAngle: return .openAngle
-		case singleCloseAngle: return .closeAngle
-		case possibleKeyword: return .identifier
-		case keywordOrPossibleKeyword(let t, _): return t
-		case keyword(let t): return t
+		case .start: return .endOfLine
+		case .aggregating(let t): return t
+		case .aggregatingIdentifier: return .identifier
+		case .possibleOp: return .op
+		case .singleSpace: return .space
+		case .splitOp(let t, _): return t
+		case .periodOp: return .period
+		case .singleQuestionMark: return .questionMark
+		case .singleOpenAngle: return .openAngle
+		case .singleCloseAngle: return .closeAngle
+		case .possibleKeyword: return .identifier
+		case .keywordOrPossibleKeyword(let t, _): return t
+		case .keyword(let t): return t
 		}
 	}
 }
 
 // Generates tokens for the parser by aggregating or substituting tokens from `readNext`.
-func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int>(scanner: inout ScalarScanner<C>) -> Token<C> {
+func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int {
 	let start = scanner.index
 	var state = LexerState.start
 	
@@ -637,30 +637,30 @@ func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSeq
 		case (.start, .invalid): fallthrough
 		case (.start, .tab): state = .aggregating(tok)
 		case (.start, _): return Token<C>(tok: tok, slice: scanner.scalars[start..<scanner.index])
-		
+			
 		case (.keyword, .identifier): state = .aggregatingIdentifier
 		case (.keyword, .combining): state = .aggregatingIdentifier
 		case (.keyword, .digit): state = .aggregatingIdentifier
-
+			
 		case (.aggregatingIdentifier, .identifier): break
 		case (.aggregatingIdentifier, .combining): break
 		case (.aggregatingIdentifier, .digit): break
-
+			
 		case (.periodOp, .op): break
 		case (.periodOp, .openAngle): break
 		case (.periodOp, .closeAngle): break
 		case (.periodOp, .combining): break
 		case (.periodOp, .period): break
-		
+			
 		case (.aggregating(.multiSpace), .space): break
 		case (.aggregating(tok), _): break
-		
+			
 		case (.singleSpace, .space): state = .aggregating(.multiSpace)
-
+			
 		case (.singleOpenAngle, .questionMark), (.singleOpenAngle, .op), (.singleOpenAngle, .openAngle), (.singleOpenAngle, .closeAngle): fallthrough
 		case (.singleCloseAngle, .questionMark), (.singleCloseAngle, .op), (.singleCloseAngle, .openAngle), (.singleCloseAngle, .closeAngle): fallthrough
 		case (.singleQuestionMark, .questionMark), (.singleQuestionMark, .op), (.singleQuestionMark, .openAngle), (.singleQuestionMark, .closeAngle): state = startOp(scalar)
-		
+			
 		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark), (.possibleOp(let f), .openAngle), (.possibleOp(let f), .closeAngle):
 			state = f(scalar)
 			if case .splitOp(let t, let length) = state {
@@ -671,15 +671,15 @@ func nextToken<C: Collection where C.Iterator.Element == UnicodeScalar, C.SubSeq
 					return Token<C>(tok: t, slice: scanner.scalars[start..<scanner.index])
 				}
 			}
-		
+			
 		case (.possibleKeyword(let f), .identifier): state = f(scalar)
 		case (.possibleKeyword(let f), .combining): state = f(scalar)
 		case (.possibleKeyword(let f), .digit): state = f(scalar)
-
+			
 		case (.keywordOrPossibleKeyword(_, let f), .identifier): state = f(scalar)
 		case (.keywordOrPossibleKeyword(_, let f), .combining): state = f(scalar)
 		case (.keywordOrPossibleKeyword(_, let f), .digit): state = f(scalar)
-
+			
 		default:
 			try scanner.backtrack()
 			return Token<C>(tok: state.finalize(), slice: scanner.scalars[start..<scanner.index])
@@ -714,9 +714,9 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case ";": return .semiColon
 	case "@": return .at
 	case "`": return .backtick
-	
+		
 	case "?": return .questionMark
-	
+		
 	case "a"..."z", "A"..."Z": fallthrough
 	case "_": fallthrough
 	case "\u{00a8}", "\u{00aa}", "\u{00ad}", "\u{00af}": fallthrough
@@ -743,12 +743,12 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case "\u{90000}"..."\u{9fffd}", "\u{a0000}"..."\u{afffd}": fallthrough
 	case "\u{b0000}"..."\u{bfffd}", "\u{c0000}"..."\u{cfffd}": fallthrough
 	case "\u{d0000}"..."\u{dfffd}", "\u{e0000}"..."\u{efffd}": return .identifier
-
+		
 	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9": return .digit
-	
+		
 	case "\u{0300}"..."\u{036f}", "\u{1dc0}"..."\u{1dff}": fallthrough
 	case "\u{20d0}"..."\u{20ff}", "\u{fe20}"..."\u{fe2f}": return .combining
-
+		
 	case "/", "=", "-", "+", "!", "*", "%", "&": fallthrough
 	case "|", "^", "~": fallthrough
 	case "\u{00a1}"..."\u{00a7}", "\u{00a9}"..."\u{00ab}": fallthrough
@@ -760,8 +760,8 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case "\u{2055}"..."\u{205e}", "\u{2190}"..."\u{23ff}": fallthrough
 	case "\u{2500}"..."\u{2775}", "\u{2794}"..."\u{2bff}": fallthrough
 	case "\u{2e00}"..."\u{2e7f}", "\u{3001}"..."\u{3003}": fallthrough
-	case "\u{3008}"..."\u{3030}":  return .op
-	
+	case "\u{3008}"..."\u{3030}": return .op
+		
 	case "\u{000b}", "\u{000c}", "\0": return .whitespace
 		
 	default: return .invalid
