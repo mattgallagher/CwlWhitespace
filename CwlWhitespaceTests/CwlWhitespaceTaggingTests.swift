@@ -471,4 +471,73 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		let regions3 = tagger.parseLine("func A< B >() {}")
 		XCTAssert(regions3 == [TaggedRegion(start: 7, end: 8, tag: .unexpectedWhitespace, expected: 0), TaggedRegion(start: 9, end: 10, tag: .unexpectedWhitespace, expected: 0)])
 	}
+	
+	func testKeywordAsIdentifier() {
+		var tagger = WhitespaceTagger()
+		_ = tagger.parseLine("class A {")
+		_ = tagger.parseLine("\tfunc B() {")
+		let regions1 = tagger.parseLine("\t\tSome.case.default.switch.identifier {")
+		XCTAssert(regions1.isEmpty)
+	}
+	
+	func testPrefix() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let a = [-1, b!]")
+		XCTAssert(regions1.isEmpty)
+
+		var tagger2 = WhitespaceTagger()
+		let regions2 = tagger2.parseLine("let a = (-1, b?)")
+		XCTAssert(regions2.isEmpty)
+		
+		var tagger3 = WhitespaceTagger()
+		let regions3 = tagger3.parseLine("let a = [.hello]")
+		XCTAssert(regions3.isEmpty)
+
+		var tagger4 = WhitespaceTagger()
+		let regions4 = tagger4.parseLine("let a = (.hello)")
+		XCTAssert(regions4.isEmpty)
+
+		var tagger5 = WhitespaceTagger()
+		let regions5 = tagger5.parseLine("let a = .hello")
+		XCTAssert(regions5.isEmpty)
+
+		var tagger6 = WhitespaceTagger()
+		let regions6 = tagger6.parseLine("let a = -5")
+		XCTAssert(regions6.isEmpty)
+	}
+	
+	func testNestedGeneric() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let t = Alpha<Beta<Gamma>>()")
+		XCTAssert(regions1.isEmpty)
+		
+		var tagger2 = WhitespaceTagger()
+		let regions2 = tagger2.parseLine("let t = a >> b")
+		XCTAssert(regions2.isEmpty)
+	}
+	
+	func testOptionalParam() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let t = (String?, String?) -> Void")
+		XCTAssert(regions1.isEmpty)
+	}
+	
+	func testPostfixDot() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let t = alpha!.beta()")
+		XCTAssert(regions1.isEmpty)
+	}
+	
+	func testCloseGenericWithQuestionMark() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("weak var weakInput: SignalInput<Int>? = nil")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+	
+	func testInvokeOptionalFunction() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let t = a?()")
+		XCTAssert(regions1.isEmpty)
+	}
 }

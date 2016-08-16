@@ -211,7 +211,7 @@ public struct WhitespaceTagger {
 		repeat {
 			#if DEBUG
 				// Handy debug statement:
-				print("Column: \(column), state: \(state), token: \(token.tok), length: \(token.slice.count), stack count: \(stack.count), stack top: \(stack.last.map { String($0) } ?? "none"), region count: \(regions.count), text: \(token.slice)")
+				print("Column: \(column), state: \(state), token: \(token.tok), length: \(token.slice.count), stack count: \(stack.count), stack top: \(stack.last.map { String(describing: $0) } ?? "none"), region count: \(regions.count), text: \(token.slice)")
 			#endif
 			
 			switch (state, token.tok, stack) {
@@ -296,6 +296,9 @@ public struct WhitespaceTagger {
 			case (.identifierBody, .multiSpace, _):
 				flag(regions: &regions, tag: .multipleSpaces, start: column, length: token.slice.count, expected: 1)
 				arrow(to: .spaceBody)
+			case (.identifierBody, .op, _): fallthrough
+			case (.identifierBody, .period, _):
+				arrow(to: .postfix)
 			case (.identifierBody, _, _):
 				arrow(to: .body)
 				continue
@@ -309,8 +312,8 @@ public struct WhitespaceTagger {
 				// Space requirement satisfied without a space. Change to .spaceBody and reprocess normally.
 				arrow(to: .braceBody)
 				continue
-			case (.parenBody, .op, _): arrow(to: .infix)
-			case (.parenBody, .period, _): arrow(to: .infix)
+			case (.parenBody, .op, _): arrow(to: .prefix)
+			case (.parenBody, .period, _): arrow(to: .prefix)
 			case (.parenBody, .endOfLine, _): arrow(to: .body)
 			case (.parenBody, _, _):
 				arrow(to: .body)
@@ -334,34 +337,49 @@ public struct WhitespaceTagger {
 				continue
 				
 			// An operator parsed that should be followed a space or a dot operator (i.e. a left-hugging colon, postfix operator or comma)
+			case (.postfix, .period, _): arrow(to: .infix)
+			case (.postfix, .comma, _): break
 			case (.postfix, .openParen, _) where previousTok == .period: fallthrough
 			case (.postfix, .quote, _) where previousTok == .period: fallthrough
 			case (.postfix, .digit, _) where previousTok == .period: fallthrough
 			case (.postfix, .dollar, _) where previousTok == .period: fallthrough
+			case (.postfix, .caseKeyword, _) where previousTok == .period: fallthrough
+			case (.postfix, .defaultKeyword, _) where previousTok == .period: fallthrough
+			case (.postfix, .switchKeyword, _) where previousTok == .period: fallthrough
 			case (.postfix, .identifier, _) where previousTok == .period:
 				arrow(to: .body)
 				continue
-			case (.postfix, .openAngle, _): break
-			case (.postfix, .closeAngle, _): break
 			case (.postfix, .openParen, _) where previousTok == .op: fallthrough
 			case (.postfix, .quote, _) where previousTok == .op: fallthrough
 			case (.postfix, .digit, _) where previousTok == .op: fallthrough
 			case (.postfix, .dollar, _) where previousTok == .op: fallthrough
+			case (.postfix, .caseKeyword, _) where previousTok == .op: fallthrough
+			case (.postfix, .defaultKeyword, _) where previousTok == .op: fallthrough
+			case (.postfix, .switchKeyword, _) where previousTok == .op: fallthrough
 			case (.postfix, .identifier, _) where previousTok == .op:
 				flag(regions: &regions, tag: .missingSpace, start: column - previousLength, length: 0, expected: 1)
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .infix)
 				continue
-			case (.postfix, .openParen, _): fallthrough
 			case (.postfix, .quote, _): fallthrough
 			case (.postfix, .digit, _): fallthrough
 			case (.postfix, .dollar, _): fallthrough
+			case (.postfix, .caseKeyword, _): fallthrough
+			case (.postfix, .defaultKeyword, _): fallthrough
+			case (.postfix, .switchKeyword, _): fallthrough
 			case (.postfix, .identifier, _):
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
 				continue
 			case (.postfix, .space, _): arrow(to: .spaceBody)
 			case (.postfix, .endOfLine, _): arrow(to: .body)
+			case (.postfix, .openAngle, _): break
+			case (.postfix, .openParen, _): fallthrough
+			case (.postfix, .closeAngle, _): fallthrough
+			case (.postfix, .closeParen, _): fallthrough
+			case (.postfix, .closeBracket, _):
+				arrow(to: .body)
+				continue
 			case (.postfix, _, _):
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
@@ -385,6 +403,7 @@ public struct WhitespaceTagger {
 			case (.infix, .space, _):
 				// We got the required space
 				arrow(to: .spaceBody)
+			case (.infix, .closeAngle, _): break
 			case (.infix, _, _) where previousTok == .closeAngle:
 				flag(regions: &regions, tag: .unexpectedWhitespace, start: column - previousLength - 1, length: 1, expected: 0)
 				arrow(to: .body)
@@ -393,6 +412,9 @@ public struct WhitespaceTagger {
 			case (.infix, .quote, _): fallthrough
 			case (.infix, .digit, _): fallthrough
 			case (.infix, .dollar, _): fallthrough
+			case (.infix, .caseKeyword, _): fallthrough
+			case (.infix, .defaultKeyword, _): fallthrough
+			case (.infix, .switchKeyword, _): fallthrough
 			case (.infix, .identifier, _): fallthrough
 			case (.infix, .openBracket, _):
 				arrow(to: .prefix)
@@ -402,7 +424,6 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
 				continue
-			case (.infix, .comma, _): break
 			case (.infix, .closeParen, _): fallthrough
 			case (.infix, .closeBracket, _): fallthrough
 			case (.infix, .endOfLine, _): fallthrough
@@ -441,14 +462,14 @@ public struct WhitespaceTagger {
 			case (.body, .colon, TopScope(.ternary)): arrow(to: .infix)
 			case (.body, .colon, _): arrow(to: .postfix)
 			case (.body, .comma, _): arrow(to: .postfix)
-			case (.body, .op, _): arrow(to: .postfix)
+			case (.body, .op, _): arrow(to: .prefix)
+			case (.body, .period, _): arrow(to: .prefix)
 			case (.body, .questionMark, _): arrow(to: .postfix)
 			case (.body, .identifier, _): arrow(to: .identifierBody)
 			case (.body, .hash, _): arrow(to: .prefix)
 			case (.body, .digit, _): arrow(to: .identifierBody)
 			case (.body, .dollar, _): arrow(to: .prefix)
 			case (.body, .combining, _): break
-			case (.body, .period, _): arrow(to: .postfix)
 			case (.body, .semiColon, _): arrow(to: .postfix)
 			case (.body, .at, _): arrow(to: .prefix)
 			case (.body, .backtick, _): arrow(to: .postfix)
@@ -658,7 +679,7 @@ func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where
 		case (.singleSpace, .space): state = .aggregating(.multiSpace)
 			
 		case (.singleOpenAngle, .questionMark), (.singleOpenAngle, .op), (.singleOpenAngle, .openAngle), (.singleOpenAngle, .closeAngle): fallthrough
-		case (.singleCloseAngle, .questionMark), (.singleCloseAngle, .op), (.singleCloseAngle, .openAngle), (.singleCloseAngle, .closeAngle): fallthrough
+		case (.singleCloseAngle, .op), (.singleCloseAngle, .openAngle): fallthrough
 		case (.singleQuestionMark, .questionMark), (.singleQuestionMark, .op), (.singleQuestionMark, .openAngle), (.singleQuestionMark, .closeAngle): state = startOp(scalar)
 			
 		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark), (.possibleOp(let f), .openAngle), (.possibleOp(let f), .closeAngle):
@@ -921,7 +942,7 @@ func ~=(test: TopScope, array: Array<Scope>) -> Bool {
 
 typealias MatchBuffer = (UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar)
 func match(first: inout MatchBuffer, second: inout MatchBuffer) -> Bool {
-	return withUnsafePointers(&first, &second) { (firstPtr, secondPtr) -> Bool in
-		memcmp(UnsafePointer<Void>(firstPtr), UnsafePointer<Void>(secondPtr), sizeof(MatchBuffer.self)) == 0
-	}
+	return withUnsafePointer(to: &first) { firstPtr in withUnsafePointer(to: &second) { secondPtr -> Bool in
+		memcmp(UnsafeRawPointer(firstPtr), UnsafeRawPointer(secondPtr), MemoryLayout<MatchBuffer>.size) == 0
+	} }
 }

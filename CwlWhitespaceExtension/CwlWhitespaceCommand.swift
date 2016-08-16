@@ -69,7 +69,7 @@ func apply(regions taggedRegions: [TaggedRegion], to line: String, index lineInd
 		}
 		
 		while sourceCount < region.start && sourceIndex != source.endIndex {
-			corrected.append(source[sourceIndex])
+			corrected.unicodeScalars.append(source[sourceIndex])
 			sourceIndex = source.index(after: sourceIndex)
 			sourceCount += 1
 		}
@@ -85,7 +85,7 @@ func apply(regions taggedRegions: [TaggedRegion], to line: String, index lineInd
 			
 			// Write the corrected whitespace
 			for _ in 0..<(region.expected) {
-				corrected.append(correctionScalar)
+				corrected.unicodeScalars.append(correctionScalar)
 			}
 			
 			// Generate a selection
@@ -105,7 +105,7 @@ func apply(regions taggedRegions: [TaggedRegion], to line: String, index lineInd
 	
 	// Copy all text remaining up to the end of the line
 	while sourceIndex != source.endIndex {
-		corrected.append(source[sourceIndex])
+		corrected.unicodeScalars.append(source[sourceIndex])
 		sourceIndex = source.index(after: sourceIndex)
 	}
 	
