@@ -77,6 +77,7 @@ enum Scope {
 	case comment
 	case string
 	case interpolation
+	case escapedKeyword
 	case paren
 	case angle
 	case block
@@ -472,7 +473,8 @@ public struct WhitespaceTagger {
 			case (.body, .combining, _): break
 			case (.body, .semiColon, _): arrow(to: .postfix)
 			case (.body, .at, _): arrow(to: .prefix)
-			case (.body, .backtick, _): arrow(to: .postfix)
+			case (.body, .backtick, TopScope(.escapedKeyword)): arrow(to: .identifierBody, pop: .escapedKeyword)
+			case (.body, .backtick, _): arrow(to: .body, push: .escapedKeyword)
 			case (.body, .slashStar, _): arrow(to: .multiComment, push: .comment)
 			case (.body, .starSlash, _): break
 			case (.body, .doubleSlash, _): arrow(to: .lineComment)

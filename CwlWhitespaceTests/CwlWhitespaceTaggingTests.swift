@@ -540,4 +540,10 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		let regions1 = tagger1.parseLine("let t = a?()")
 		XCTAssert(regions1.isEmpty)
 	}
+
+	func testBackticks() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("var `default`: String { get }")
+		XCTAssert(regions1.isEmpty)
+	}
 }
