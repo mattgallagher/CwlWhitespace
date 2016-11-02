@@ -510,22 +510,26 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		var tagger1 = WhitespaceTagger()
 		let regions1 = tagger1.parseLine("let t = Alpha<Beta<Gamma>>()")
 		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
 		
 		var tagger2 = WhitespaceTagger()
 		let regions2 = tagger2.parseLine("let t = a >> b")
 		XCTAssert(regions2.isEmpty)
+		XCTAssert(tagger2.stack.isEmpty)
 	}
 	
 	func testOptionalParam() {
 		var tagger1 = WhitespaceTagger()
 		let regions1 = tagger1.parseLine("let t = (String?, String?) -> Void")
 		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
 	}
 	
 	func testPostfixDot() {
 		var tagger1 = WhitespaceTagger()
 		let regions1 = tagger1.parseLine("let t = alpha!.beta()")
 		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
 	}
 	
 	func testCloseGenericWithQuestionMark() {
@@ -539,11 +543,20 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		var tagger1 = WhitespaceTagger()
 		let regions1 = tagger1.parseLine("let t = a?()")
 		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
 	}
 
 	func testBackticks() {
 		var tagger1 = WhitespaceTagger()
 		let regions1 = tagger1.parseLine("var `default`: String { get }")
 		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+
+	func testCaseScenario() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("SomeClass<String?>")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
 	}
 }

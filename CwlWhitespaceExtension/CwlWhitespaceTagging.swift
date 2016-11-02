@@ -682,7 +682,7 @@ func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where
 			
 		case (.singleOpenAngle, .questionMark), (.singleOpenAngle, .op), (.singleOpenAngle, .openAngle), (.singleOpenAngle, .closeAngle): fallthrough
 		case (.singleCloseAngle, .op), (.singleCloseAngle, .openAngle): fallthrough
-		case (.singleQuestionMark, .questionMark), (.singleQuestionMark, .op), (.singleQuestionMark, .openAngle), (.singleQuestionMark, .closeAngle): state = startOp(scalar)
+		case (.singleQuestionMark, .questionMark), (.singleQuestionMark, .op), (.singleQuestionMark, .openAngle): state = startOp(scalar)
 			
 		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark), (.possibleOp(let f), .openAngle), (.possibleOp(let f), .closeAngle):
 			state = f(scalar)
