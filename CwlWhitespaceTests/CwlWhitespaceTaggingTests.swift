@@ -559,4 +559,11 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger1.stack.isEmpty)
 	}
+
+	func testOptionalArray() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let x = a?[0]")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
 }

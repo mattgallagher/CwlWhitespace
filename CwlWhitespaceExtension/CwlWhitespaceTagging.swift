@@ -341,6 +341,7 @@ public struct WhitespaceTagger {
 			case (.postfix, .period, _): arrow(to: .infix)
 			case (.postfix, .comma, _): break
 			case (.postfix, .openParen, _) where previousTok == .period: fallthrough
+			case (.postfix, .openBracket, _) where previousTok == .period: fallthrough
 			case (.postfix, .quote, _) where previousTok == .period: fallthrough
 			case (.postfix, .digit, _) where previousTok == .period: fallthrough
 			case (.postfix, .dollar, _) where previousTok == .period: fallthrough
@@ -351,6 +352,7 @@ public struct WhitespaceTagger {
 				arrow(to: .body)
 				continue
 			case (.postfix, .openParen, _) where previousTok == .op: fallthrough
+			case (.postfix, .openBracket, _) where previousTok == .op: fallthrough
 			case (.postfix, .quote, _) where previousTok == .op: fallthrough
 			case (.postfix, .digit, _) where previousTok == .op: fallthrough
 			case (.postfix, .dollar, _) where previousTok == .op: fallthrough
@@ -376,6 +378,7 @@ public struct WhitespaceTagger {
 			case (.postfix, .endOfLine, _): arrow(to: .body)
 			case (.postfix, .openAngle, _): break
 			case (.postfix, .openParen, _): fallthrough
+			case (.postfix, .openBracket, _): fallthrough
 			case (.postfix, .closeAngle, _): fallthrough
 			case (.postfix, .closeParen, _): fallthrough
 			case (.postfix, .closeBracket, _):
