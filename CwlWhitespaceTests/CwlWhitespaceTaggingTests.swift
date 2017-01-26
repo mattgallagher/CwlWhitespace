@@ -539,9 +539,16 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		XCTAssert(tagger1.stack.isEmpty)
 	}
 	
-	func testInvokeOptionalFunction() {
+	func testInvokeConditionalOptionalFunction() {
 		var tagger1 = WhitespaceTagger()
 		let regions1 = tagger1.parseLine("let t = a?()")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+
+	func testInvokeForceOptionalFunction() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let t = a!()")
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger1.stack.isEmpty)
 	}
@@ -563,6 +570,55 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 	func testOptionalArray() {
 		var tagger1 = WhitespaceTagger()
 		let regions1 = tagger1.parseLine("let x = a?[0]")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+
+	func testMultilineArray() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let x = [\n")
+		let regions2 = tagger1.parseLine("\tfirst,\n")
+		let regions3 = tagger1.parseLine("\tsecond\n")
+		let regions4 = tagger1.parseLine("]\n")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(regions2.isEmpty)
+		XCTAssert(regions3.isEmpty)
+		XCTAssert(regions4.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+	
+	func testMultilineFunction() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("Top.construct(\n")
+		let regions2 = tagger1.parseLine("\tSecond.construct(\n")
+		let regions3 = tagger1.parseLine("\t\tControl.enabled <-- viewModel.selectionOutput.map { !$0.isEmpty }\n")
+		let regions4 = tagger1.parseLine("\t)\n")
+		let regions5 = tagger1.parseLine(")\n")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(regions2.isEmpty)
+		XCTAssert(regions3.isEmpty)
+		XCTAssert(regions4.isEmpty)
+		XCTAssert(regions5.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+	
+	func testSelector() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("let s = #selector(NSApplicationDelegate.application(_:printFiles:withSettings:showPrintPanels:))")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+	
+	func testAtAvailable() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("@available(OSX 10.12, *)")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+	
+	func testHashAvailable() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("if #available(OSX 10.12, *) { print(\"Hi\") }")
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger1.stack.isEmpty)
 	}

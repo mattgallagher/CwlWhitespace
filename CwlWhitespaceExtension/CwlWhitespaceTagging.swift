@@ -41,6 +41,7 @@ enum Tok {
 	case comma
 	case op
 	case questionMark
+	case exclamationMark
 	case identifier
 	case hash
 	case digit
@@ -64,6 +65,7 @@ enum Tok {
 	case hashElseKeyword
 	case hashElseifKeyword
 	case hashEndifKeyword
+	case hashSelectorKeyword
 	
 	// Newlines and carriage returns
 	case endOfLine
@@ -83,6 +85,7 @@ enum Scope {
 	case block
 	case bracket
 	case hash
+	case selector
 	case switchScope
 	case pendingSwitch
 	case ternary
@@ -117,6 +120,9 @@ enum ParseState {
 	
 	// An identifier just parsed (or other token that may be followed by a postfix operator, dot operator or space but not another identifier or open scope)
 	case identifierBody
+	
+	// The #selector keyword must be followed by an open paren
+	case selector
 	
 	// Left paren just parsed
 	case parenBody
@@ -234,6 +240,16 @@ public struct WhitespaceTagger {
 			// Skipping to end of line
 			case (.lineComment, _, _): break
 				
+			// Skipping to end of line
+			case (.selector, .openParen, _): arrow(to: .parenBody, push: .selector)
+			case (.selector, .whitespace, _):
+				flag(regions: &regions, tag: .unexpectedWhitespace, start: column, length: token.slice.count, expected: 0)
+				break
+			case (.selector, _, _):
+				// Not sure this is ever valid but that's the compiler's problem
+				arrow(to: .body)
+				continue
+				
 			// Start of the line
 			case (.indent, IndentToken(indentationStyle), _): break
 			case (.indent, .space, _): arrow(to: .invalidIndent)
@@ -266,6 +282,7 @@ public struct WhitespaceTagger {
 			// Space after non-whitespace, non-operator.
 			case (.spaceBody, .colon, TopScope(.ternary)): arrow(to: .infix, pop: .ternary)
 			case (.spaceBody, .questionMark, _): arrow(to: .infix, push: .ternary)
+			case (.spaceBody, .exclamationMark, _): arrow(to: .prefix)
 			case (.spaceBody, .op, _): arrow(to: .infix)
 			case (.spaceBody, .openAngle, _): arrow(to: .infix)
 			case (.spaceBody, .closeAngle, _): arrow(to: .infix)
@@ -364,6 +381,10 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .infix)
 				continue
+			case (.postfix, .identifier, AnyScope(.selector)):
+				// Inside a selector, don't flag missing space
+				arrow(to: .body)
+				continue
 			case (.postfix, .quote, _): fallthrough
 			case (.postfix, .digit, _): fallthrough
 			case (.postfix, .dollar, _): fallthrough
@@ -428,7 +449,10 @@ public struct WhitespaceTagger {
 				flag(regions: &regions, tag: .missingSpace, start: column, length: 0, expected: 1)
 				arrow(to: .body)
 				continue
-			case (.infix, .closeParen, _): fallthrough
+			case (.infix, .closeParen, _):
+				// Normally, an infix followed by a close paren, without a space, would be a whitespace issue but it could be a `*)` at the end of an `@available` qualifier. In any case, if the *compiler* okays it, there's probably something going on.
+				arrow(to: .body)
+				continue
 			case (.infix, .closeBracket, _): fallthrough
 			case (.infix, .endOfLine, _): fallthrough
 			case (.infix, _, _):
@@ -458,6 +482,7 @@ public struct WhitespaceTagger {
 			case (.body, .closeParen, TopScope(.interpolation)): arrow(to: .literal, pop: .interpolation)
 			case (.body, .closeParen, TopScope(.paren)): arrow(to: .identifierBody, pop: .paren)
 			case (.body, .closeParen, TopScope(.shadowedParen)): arrow(to: .identifierBody, pop: .shadowedParen)
+			case (.body, .closeParen, TopScope(.selector)): arrow(to: .identifierBody, pop: .selector)
 			case (.body, .closeParen, _): break
 			case (.body, .openAngle, _): arrow(to: .angleBody, push: .angle)
 			case (.body, .closeAngle, TopScope(.angle)): arrow(to: .identifierBody, pop: .angle)
@@ -469,6 +494,7 @@ public struct WhitespaceTagger {
 			case (.body, .op, _): arrow(to: .prefix)
 			case (.body, .period, _): arrow(to: .prefix)
 			case (.body, .questionMark, _): arrow(to: .postfix)
+			case (.body, .exclamationMark, _): arrow(to: .postfix)
 			case (.body, .identifier, _): arrow(to: .identifierBody)
 			case (.body, .hash, _): arrow(to: .prefix)
 			case (.body, .digit, _): arrow(to: .identifierBody)
@@ -489,6 +515,7 @@ public struct WhitespaceTagger {
 			case (.body, .hashElseifKeyword, _): arrow(to: .identifierBody)
 			case (.body, .hashEndifKeyword, TopScope(.hash)): arrow(to: .identifierBody, pop: .hash)
 			case (.body, .hashEndifKeyword, _): arrow(to: .identifierBody)
+			case (.body, .hashSelectorKeyword, _): arrow(to: .selector)
 			case (.body, .endOfLine, _): break
 			case (.body, .invalid, _):
 				flag(regions: &regions, tag: .invalidCharacter, start: column, length: token.slice.count, expected: 0)
@@ -568,6 +595,7 @@ public struct WhitespaceTagger {
 			switch scope {
 			case .paren: return count + 1
 			case .block: return count + 1
+			case .bracket: return count + 1
 			case .hash: return count + 1
 			case .switchScope: return count + 1
 			default: return count
@@ -615,6 +643,7 @@ enum LexerState: Error {
 	case keyword(Tok)
 	case singleSpace
 	case singleQuestionMark
+	case singleExclamationMark
 	case singleOpenAngle
 	case singleCloseAngle
 	
@@ -628,6 +657,7 @@ enum LexerState: Error {
 		case .splitOp(let t, _): return t
 		case .periodOp: return .period
 		case .singleQuestionMark: return .questionMark
+		case .singleExclamationMark: return .exclamationMark
 		case .singleOpenAngle: return .openAngle
 		case .singleCloseAngle: return .closeAngle
 		case .possibleKeyword: return .identifier
@@ -654,6 +684,7 @@ func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where
 		case (.start, .space): state = .singleSpace
 		case (.start, .period): state = .periodOp
 		case (.start, .questionMark): state = .singleQuestionMark
+		case (.start, .exclamationMark): state = .singleExclamationMark
 		case (.start, .openAngle): state = .singleOpenAngle
 		case (.start, .closeAngle): state = .singleCloseAngle
 		case (.start, .tab): fallthrough
@@ -683,11 +714,12 @@ func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where
 			
 		case (.singleSpace, .space): state = .aggregating(.multiSpace)
 			
-		case (.singleOpenAngle, .questionMark), (.singleOpenAngle, .op), (.singleOpenAngle, .openAngle), (.singleOpenAngle, .closeAngle): fallthrough
+		case (.singleOpenAngle, .questionMark), (.singleOpenAngle, .op), (.singleOpenAngle, .exclamationMark), (.singleOpenAngle, .openAngle), (.singleOpenAngle, .closeAngle): fallthrough
 		case (.singleCloseAngle, .op), (.singleCloseAngle, .openAngle): fallthrough
-		case (.singleQuestionMark, .questionMark), (.singleQuestionMark, .op), (.singleQuestionMark, .openAngle): state = startOp(scalar)
+		case (.singleQuestionMark, .questionMark), (.singleQuestionMark, .op), (.singleQuestionMark, .exclamationMark), (.singleQuestionMark, .openAngle): state = startOp(scalar)
+		case (.singleExclamationMark, .questionMark), (.singleExclamationMark, .op), (.singleExclamationMark, .exclamationMark), (.singleExclamationMark, .openAngle): state = startOp(scalar)
 			
-		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark), (.possibleOp(let f), .openAngle), (.possibleOp(let f), .closeAngle):
+		case (.possibleOp(let f), .op), (.possibleOp(let f), .combining), (.possibleOp(let f), .questionMark), (.possibleOp(let f), .exclamationMark), (.possibleOp(let f), .openAngle), (.possibleOp(let f), .closeAngle):
 			state = f(scalar)
 			if case .splitOp(let t, let length) = state {
 				if scanner.scalars[start..<scanner.index].count > length {
@@ -741,6 +773,7 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case "@": return .at
 	case "`": return .backtick
 		
+	case "!": return .exclamationMark
 	case "?": return .questionMark
 		
 	case "a"..."z", "A"..."Z": fallthrough
@@ -815,6 +848,22 @@ func startOp(_ scalar: UnicodeScalar) -> LexerState {
 func startHash(_ scalar: UnicodeScalar) -> LexerState {
 	return LexerState.possibleKeyword {
 		switch $0 {
+		case "s":
+			return LexerState.possibleKeyword {
+				$0 == "e" ? LexerState.possibleKeyword {
+					$0 == "l" ? LexerState.possibleKeyword {
+						$0 == "e" ? LexerState.possibleKeyword {
+							$0 == "c" ? LexerState.possibleKeyword {
+								$0 == "t" ? LexerState.possibleKeyword {
+									$0 == "o" ? LexerState.possibleKeyword {
+										$0 == "r" ? .keyword(.hashSelectorKeyword) : .aggregating(.identifier)
+									} : .aggregating(.identifier)
+								} : .aggregating(.identifier)
+							} : .aggregating(.identifier)
+						} : .aggregating(.identifier)
+					} : .aggregating(.identifier)
+				} : .aggregating(.identifier)
+			}
 		case "i":
 			return LexerState.possibleKeyword {
 				$0 == "f" ? .keyword(.hashIfKeyword) : .aggregating(.identifier)
@@ -943,6 +992,17 @@ struct TopScope {
 
 func ~=(test: TopScope, array: Array<Scope>) -> Bool {
 	return array.last == test.scope
+}
+
+struct AnyScope {
+	let scope: Scope
+	init(_ scope: Scope) {
+		self.scope = scope
+	}
+}
+
+func ~=(test: AnyScope, array: Array<Scope>) -> Bool {
+	return array.first { $0 == test.scope } != nil
 }
 
 typealias MatchBuffer = (UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar, UnicodeScalar)
