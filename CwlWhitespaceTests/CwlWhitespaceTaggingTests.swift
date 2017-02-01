@@ -622,4 +622,22 @@ class CwlWhitespaceTaggingTests: XCTestCase {
 		XCTAssert(regions1.isEmpty)
 		XCTAssert(tagger1.stack.isEmpty)
 	}
+	
+	func testNotPrecondition() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("precondition(!test)")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
+	
+	func testFuncArrayIndent() {
+		var tagger1 = WhitespaceTagger()
+		let regions1 = tagger1.parseLine("Target(name: \"CwlPreconditionTesting\", dependencies: [\n")
+		let regions2 = tagger1.parseLine("\t\"CwlMachBadInstructionHandler\"\n")
+		let regions3 = tagger1.parseLine("])\n")
+		XCTAssert(regions1.isEmpty)
+		XCTAssert(regions2.isEmpty)
+		XCTAssert(regions3.isEmpty)
+		XCTAssert(tagger1.stack.isEmpty)
+	}
 }

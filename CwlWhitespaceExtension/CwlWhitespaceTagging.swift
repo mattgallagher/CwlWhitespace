@@ -330,6 +330,7 @@ public struct WhitespaceTagger {
 				// Space requirement satisfied without a space. Change to .spaceBody and reprocess normally.
 				arrow(to: .braceBody)
 				continue
+			case (.parenBody, .exclamationMark, _): arrow(to: .prefix)
 			case (.parenBody, .op, _): arrow(to: .prefix)
 			case (.parenBody, .period, _): arrow(to: .prefix)
 			case (.parenBody, .endOfLine, _): arrow(to: .body)
@@ -549,9 +550,11 @@ public struct WhitespaceTagger {
 			switch stack[index] {
 			case .string: stack.removeSubrange(index..<stack.endIndex)
 			case .block where !found: fallthrough
+			case .bracket where !found: fallthrough
 			case .paren where !found: found = true
 			case .block: stack[index] = .shadowedBlock
 			case .paren: stack[index] = .shadowedParen
+			case .bracket: stack[index] = .shadowedBracket
 			default: break
 			}
 		}
