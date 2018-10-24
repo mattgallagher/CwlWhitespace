@@ -200,7 +200,7 @@ public struct WhitespaceTagger {
 	/// Runs the parser
 	/// - parameter line: the text over which the parser will run
 	/// - returns: an array of regions in the text that violated the whitespace expectations
-	public mutating func parseLine<C: Collection>(_ line: C) -> [TaggedRegion] where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.Iterator.Element == UnicodeScalar, C.SubSequence.IndexDistance == Int {
+	public mutating func parseLine<C: Collection>(_ line: C) -> [TaggedRegion] where C.Iterator.Element == UnicodeScalar {
 		var scanner = ScalarScanner<C>(scalars: line)
 		var regions = [TaggedRegion]()
 		
@@ -629,7 +629,7 @@ public struct WhitespaceTagger {
 	}
 }
 
-struct Token<C: Collection> where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int {
+struct Token<C: Collection> where C.Iterator.Element == UnicodeScalar {
 	let tok: Tok
 	let slice: C.SubSequence
 }
@@ -671,7 +671,7 @@ enum LexerState: Error {
 }
 
 // Generates tokens for the parser by aggregating or substituting tokens from `readNext`.
-func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where C.Iterator.Element == UnicodeScalar, C.SubSequence: Collection, C.SubSequence.IndexDistance == Int {
+func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where C.Iterator.Element == UnicodeScalar {
 	let start = scanner.index
 	var state = LexerState.start
 	
@@ -690,7 +690,6 @@ func nextToken<C: Collection>(scanner: inout ScalarScanner<C>) -> Token<C> where
 		case (.start, .exclamationMark): state = .singleExclamationMark
 		case (.start, .openAngle): state = .singleOpenAngle
 		case (.start, .closeAngle): state = .singleCloseAngle
-		case (.start, .tab): fallthrough
 		case (.start, .whitespace): fallthrough
 		case (.start, .digit): fallthrough
 		case (.start, .combining): fallthrough
@@ -811,7 +810,7 @@ func classify(_ scalar: UnicodeScalar) -> Tok {
 	case "\u{0300}"..."\u{036f}", "\u{1dc0}"..."\u{1dff}": fallthrough
 	case "\u{20d0}"..."\u{20ff}", "\u{fe20}"..."\u{fe2f}": return .combining
 		
-	case "/", "=", "-", "+", "!", "*", "%", "&": fallthrough
+	case "/", "=", "-", "+", "*", "%", "&": fallthrough
 	case "|", "^", "~": fallthrough
 	case "\u{00a1}"..."\u{00a7}", "\u{00a9}"..."\u{00ab}": fallthrough
 	case "\u{00ac}"..."\u{00ae}", "\u{00b0}"..."\u{00b1}": fallthrough

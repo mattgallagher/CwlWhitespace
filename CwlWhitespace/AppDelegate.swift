@@ -33,11 +33,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 	}
 
 	@IBAction func openCocoaWithLove(sender: AnyObject) {
-		NSWorkspace.shared().open(URL(string: "https://cocoawithlove.com")!)
+		NSWorkspace.shared.open(URL(string: "https://cocoawithlove.com")!)
 	}
 
 	@IBAction func openXcode(sender: AnyObject) {
-		NSWorkspace.shared().launchApplication(withBundleIdentifier: "com.apple.dt.Xcode", options: [], additionalEventParamDescriptor: nil, launchIdentifier: nil)
+		NSWorkspace.shared.launchApplication(withBundleIdentifier: "com.apple.dt.Xcode", options: [], additionalEventParamDescriptor: nil, launchIdentifier: nil)
 	}
 }
 

@@ -39,7 +39,7 @@ public enum ScalarScannerError: Error {
 }
 
 /// A structure for traversing a `String.UnicodeScalarView`. A `context` field is provided but is not used by the scanner (it is entirely for storage by the scanner's user).
-public struct ScalarScanner<C: Collection> where C.Iterator.Element == UnicodeScalar, C.Index: Comparable {
+public struct ScalarScanner<C: Collection> where C.Iterator.Element == UnicodeScalar {
 	/// The underlying storage
 	public let scalars: C
 	
